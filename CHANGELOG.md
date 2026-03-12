@@ -30,7 +30,7 @@
 - Fix `AsyncJobBatch.wait_all()` and `status_all()` to poll jobs concurrently via `asyncio.gather()` (was sequential)
 - Fix cookbook cypher query to exclude Sheet/Zone nodes for crop demo (avoids OOM on full-page renders)
 
-## Unreleased
+## v2.3.0 (2026-03-12)
 
 ### Features
 
@@ -41,6 +41,8 @@
 
 ### Documentation
 
+- Add page-13 review cookbook (`examples/page13_review_cookbook.py`)
+- Sanitize examples for public release: remove hardcoded API keys, personal paths, localhost defaults
 - Document review status values, wait semantics, and file-upload usage for the new reviews surface
 
 ### Breaking Changes

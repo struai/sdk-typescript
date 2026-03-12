@@ -8,7 +8,7 @@ Create a review from an existing `file_hash` and refresh it once:
 
 ```bash
 export STRUAI_API_KEY=your_api_key
-export STRUAI_BASE_URL=http://localhost:8000
+export STRUAI_BASE_URL=https://api.stru.ai
 export STRUAI_REVIEW_FILE_HASH=your_file_hash
 export STRUAI_REVIEW_PAGES=13
 export STRUAI_REVIEW_PROJECT_IDS=your_project_id
@@ -45,7 +45,7 @@ Start a review and refresh it once:
 
 ```bash
 export STRUAI_API_KEY=your_api_key
-export STRUAI_BASE_URL=http://localhost:8000
+export STRUAI_BASE_URL=https://api.stru.ai
 export STRUAI_REVIEW_FILE_HASH=your_file_hash
 export STRUAI_REVIEW_PAGES=13
 export STRUAI_REVIEW_PROJECT_IDS=your_project_id

@@ -3,7 +3,7 @@
  *
  * Usage:
  *   npm run build
- *   STRUAI_API_KEY=... STRUAI_BASE_URL=http://localhost:8000 \
+ *   STRUAI_API_KEY=... \
  *   STRUAI_PDF=/absolute/path/to/structural.pdf STRUAI_PAGE=12 \
  *   node scripts/projects_workflow.mjs
  *

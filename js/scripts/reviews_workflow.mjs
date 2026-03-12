@@ -6,7 +6,7 @@
  *   STRUAI_REVIEW_FILE_HASH or STRUAI_PDF
  *
  * Optional:
- *   STRUAI_BASE_URL=http://localhost:8000
+ *   STRUAI_BASE_URL=https://api.stru.ai  (default; override for local dev)
  *   STRUAI_REVIEW_PAGES=13
  *   STRUAI_REVIEW_PROJECT_IDS=proj_1,proj_2
  *   STRUAI_REVIEW_CUSTOM_INSTRUCTIONS="Focus on coordination"

@@ -12,7 +12,7 @@ python3 examples/page12_cookbook.py
 
 ## Target Context
 
-- PDF: `/Users/bhoshaga/PycharmProjects/stru/drawing_pipeline/sample-pdf/structural-compiled.pdf`
+- PDF: `structural-compiled.pdf` (96-page structural drawing set)
 - Page: `12`
 - Typical project used in QC: `proj_86c0f02e`
 - Typical sheet on page 12: `S111`

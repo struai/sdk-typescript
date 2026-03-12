@@ -1,6 +1,6 @@
 {
   "name": "struai",
-  "version": "2.2.1",
+  "version": "2.3.0",
   "description": "StruAI Drawing Analysis SDK - AI-powered construction drawing analysis",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

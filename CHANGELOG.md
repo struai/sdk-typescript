@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v2.3.0 (2026-03-12)
+
+### Features
+
+- Add review workflows for python and js sdk
+  ([`ec1f139`](https://github.com/bhoshaga/struai/commit/ec1f139f6b255c90a27c56754f47bb213038f35c))
+
+
 ## v2.2.0 (2026-02-19)
 
 ### Documentation

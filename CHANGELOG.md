@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v2.4.0 (2026-03-12)
+
+### Chores
+
+- **release**: 2.3.0
+  ([`92323e6`](https://github.com/bhoshaga/struai/commit/92323e6f6e003e6d26058ac912b949ee380145d9))
+
+### Documentation
+
+- Add page-13 review cookbook and sanitize examples for public release
+  ([`1dadeef`](https://github.com/bhoshaga/struai/commit/1dadeef445b5bca20a8a440babd4a62247b81fe9))
+
+### Features
+
+- First-class review support for Python and JavaScript SDKs
+  ([`92323e6`](https://github.com/bhoshaga/struai/commit/92323e6f6e003e6d26058ac912b949ee380145d9))
+
+
 ## v2.3.0 (2026-03-12)
 
 ### Features

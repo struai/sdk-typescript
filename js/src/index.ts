@@ -11,6 +11,13 @@ export interface StruAIOptions {
 export type Point = [number, number];
 export type BBox = [number, number, number, number];
 export type Uploadable = Blob | ArrayBuffer | ArrayBufferView | string;
+export type JSONValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: JSONValue }
+  | JSONValue[];
 
 export interface Dimensions {
   width: number;
@@ -105,6 +112,110 @@ export interface ProjectDeleteResult {
   relationships_deleted?: number;
   owner_mapping_deleted?: boolean;
   qdrant_deleted_points?: number;
+}
+
+export interface ReviewPage {
+  page_number: number;
+  page_hash: string;
+  project_id: string;
+}
+
+export interface ReviewProgressCounts {
+  pending?: number;
+  in_progress?: number;
+  completed?: number;
+  failed?: number;
+  total?: number;
+}
+
+export interface ReviewActiveSpecialist {
+  question_id: string;
+  agent: string;
+  turns_used?: number | null;
+  max_turns?: number | null;
+  updated_at?: string | null;
+}
+
+export interface ReviewSpecialistProgress extends ReviewProgressCounts {
+  out_of_scope?: number;
+  max_turns?: number | null;
+  active?: ReviewActiveSpecialist[];
+}
+
+export interface ReviewProgress {
+  scout?: ReviewProgressCounts;
+  specialist?: ReviewSpecialistProgress;
+}
+
+export interface Review {
+  review_id: string;
+  status?: string | null;
+  total_pages?: number;
+  pages?: ReviewPage[];
+  owner_user_id?: string | null;
+  file_hash?: string | null;
+  page_selector?: string | null;
+  requested_project_ids?: string[] | null;
+  custom_instructions?: string | null;
+  created_at?: string | null;
+  completed_at?: string | null;
+  progress?: ReviewProgress;
+  is_running?: boolean;
+  is_complete?: boolean;
+  is_partial?: boolean;
+  is_failed?: boolean;
+  is_terminal?: boolean;
+}
+
+export interface ReviewListResponse {
+  reviews: Review[];
+}
+
+export interface ReviewQuestion {
+  question_id: string;
+  review_id: string;
+  review_page_id?: string | null;
+  source: string;
+  status: string;
+  page_hash: string;
+  project_id: string;
+  question: string;
+  location_description?: string | null;
+  assigned_agents: string[];
+  spawned_by_question_id?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  turns_used?: number | null;
+  error?: string | null;
+  raw_model_output?: JSONValue | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface ReviewQuestionsResult {
+  review_id: string;
+  questions: ReviewQuestion[];
+}
+
+export interface ReviewIssue {
+  issue_id: string;
+  review_id: string;
+  question_id: string;
+  project_id: string;
+  page_hash: string;
+  agent: string;
+  priority: string;
+  category?: string | null;
+  title: string;
+  description: string;
+  evidence: string[];
+  suggested_fix?: string | null;
+  created_at?: string | null;
+}
+
+export interface ReviewIssuesResult {
+  review_id: string;
+  issues: ReviewIssue[];
 }
 
 export interface JobSummary {
@@ -290,7 +401,7 @@ function normalizeBaseUrl(raw: string): string {
   }
 }
 
-class APIError extends Error {
+export class APIError extends Error {
   constructor(
     message: string,
     public statusCode?: number,
@@ -322,6 +433,22 @@ function requireText(value: string, fieldName: string): string {
     throw new Error(`${fieldName} is required`);
   }
   return text;
+}
+
+function isReviewTerminal(status: string | null | undefined): boolean {
+  return status === 'completed' || status === 'completed_partial' || status === 'failed';
+}
+
+function withReviewFlags(review: Review): Review {
+  const status = review.status ?? undefined;
+  return {
+    ...review,
+    is_running: status === 'running',
+    is_complete: status === 'completed',
+    is_partial: status === 'completed_partial',
+    is_failed: status === 'failed',
+    is_terminal: isReviewTerminal(status),
+  };
 }
 
 function asRecord(value: unknown): JsonRecord | null {
@@ -1255,6 +1382,144 @@ class Projects {
   }
 }
 
+class ReviewInstance {
+  constructor(
+    private client: StruAI,
+    private review: Review
+  ) {
+    this.review = withReviewFlags(review);
+  }
+
+  get id(): string {
+    return this.review.review_id;
+  }
+
+  get data(): Review {
+    return this.review;
+  }
+
+  async refresh(): Promise<Review> {
+    this.review = withReviewFlags(await this.client.request<Review>(`/reviews/${this.id}`));
+    return this.review;
+  }
+
+  async status(): Promise<Review> {
+    return this.refresh();
+  }
+
+  async questions(): Promise<ReviewQuestion[]> {
+    const response = await this.client.request<ReviewQuestionsResult>(`/reviews/${this.id}/questions`);
+    return response.questions ?? [];
+  }
+
+  async issues(): Promise<ReviewIssue[]> {
+    const response = await this.client.request<ReviewIssuesResult>(`/reviews/${this.id}/issues`);
+    return response.issues ?? [];
+  }
+
+  async wait(options?: { timeoutMs?: number; pollIntervalMs?: number }): Promise<Review> {
+    const timeoutMs = options?.timeoutMs ?? 900_000;
+    const pollIntervalMs = options?.pollIntervalMs ?? 5_000;
+    const start = Date.now();
+
+    let latest = this.review;
+    while (Date.now() - start < timeoutMs) {
+      if (latest.is_failed) {
+        throw new APIError(`Review ${this.id} failed`);
+      }
+      if (isReviewTerminal(latest.status)) {
+        this.review = latest;
+        return latest;
+      }
+      await delay(pollIntervalMs);
+      latest = await this.refresh();
+    }
+
+    throw new APIError(`Review ${this.id} did not complete within ${timeoutMs}ms`);
+  }
+}
+
+class Reviews {
+  constructor(private client: StruAI) {}
+
+  async create(options: {
+    file?: Uploadable | null;
+    pages: number | string;
+    fileHash?: string;
+    projectIds?: string[];
+    customInstructions?: string | null;
+  }): Promise<ReviewInstance> {
+    const uploadFile = options.file;
+    const fileHash = options.fileHash;
+    const pages = parsePageSelector(options.pages);
+
+    if (uploadFile && fileHash) {
+      throw new Error('Provide file or fileHash, not both.');
+    }
+    if (!uploadFile && !fileHash) {
+      throw new Error('Provide file or fileHash.');
+    }
+
+    if (fileHash) {
+      const review = await this.client.request<Review>('/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          file_hash: fileHash,
+          pages,
+          project_ids: options.projectIds,
+          custom_instructions: options.customInstructions ?? undefined,
+        }),
+      });
+      return new ReviewInstance(this.client, withReviewFlags(review));
+    }
+
+    if (!uploadFile) {
+      throw new Error('Provide file or fileHash.');
+    }
+
+    const formData = new FormData();
+    formData.append('pages', pages);
+    for (const projectId of options.projectIds ?? []) {
+      const cleanProjectId = projectId.trim();
+      if (cleanProjectId) {
+        formData.append('project_ids', cleanProjectId);
+      }
+    }
+    if (options.customInstructions !== undefined && options.customInstructions !== null) {
+      formData.append('custom_instructions', options.customInstructions);
+    }
+
+    const part = await uploadableToFormPart(uploadFile);
+    formData.append('file', part.blob, part.filename);
+
+    const review = await this.client.request<Review>('/reviews', {
+      method: 'POST',
+      body: formData,
+    });
+    return new ReviewInstance(this.client, withReviewFlags(review));
+  }
+
+  async list(options?: { status?: string }): Promise<Review[]> {
+    const path = options?.status
+      ? `/reviews?status=${encodeURIComponent(options.status)}`
+      : '/reviews';
+    const response = await this.client.request<ReviewListResponse>(path);
+    return (response.reviews ?? []).map(withReviewFlags);
+  }
+
+  async get(reviewId: string): Promise<ReviewInstance> {
+    const cleanReviewId = requireText(reviewId, 'review_id');
+    const review = withReviewFlags(await this.client.request<Review>(`/reviews/${cleanReviewId}`));
+    return new ReviewInstance(this.client, review);
+  }
+
+  open(reviewId: string): ReviewInstance {
+    const cleanReviewId = requireText(reviewId, 'review_id');
+    return new ReviewInstance(this.client, withReviewFlags({ review_id: cleanReviewId }));
+  }
+}
+
 export class StruAI {
   private apiKey: string;
   private baseUrl: string;
@@ -1262,6 +1527,7 @@ export class StruAI {
 
   public readonly drawings: Drawings;
   public readonly projects: Projects;
+  public readonly reviews: Reviews;
 
   constructor(options: StruAIOptions) {
     this.apiKey = options.apiKey;
@@ -1270,6 +1536,7 @@ export class StruAI {
 
     this.drawings = new Drawings(this);
     this.projects = new Projects(this);
+    this.reviews = new Reviews(this);
   }
 
   async request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -1356,5 +1623,5 @@ export class StruAI {
   }
 }
 
-export { APIError, Job, JobBatch, ProjectInstance, Projects, Drawings, Sheets, DocQuery };
+export { Job, JobBatch, ProjectInstance, Projects, Drawings, Sheets, DocQuery };
 export default StruAI;

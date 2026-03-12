@@ -6,7 +6,7 @@ import asyncio
 import time
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, BinaryIO, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from .._exceptions import JobFailedError, TimeoutError
 from ..models.docquery import (
@@ -28,13 +28,11 @@ from ..models.projects import (
     SheetIngestResponse,
     SheetResult,
 )
+from ._uploads import Uploadable, _prepare_file
 from .drawings import _compute_file_hash
 
 if TYPE_CHECKING:
     from .._base import AsyncBaseClient, BaseClient
-
-Uploadable = Union[str, Path, bytes, BinaryIO]
-PreparedUpload = Tuple[dict, Optional[BinaryIO]]
 
 
 # =============================================================================
@@ -203,20 +201,6 @@ def _normalize_page_selector(page: Union[int, str]) -> str:
     if not text:
         raise ValueError("page is required")
     return text
-
-
-def _prepare_file(file: Uploadable) -> PreparedUpload:
-    if isinstance(file, (str, Path)):
-        path = Path(file)
-        handle = open(path, "rb")
-        return {"file": (path.name, handle, "application/pdf")}, handle
-    if isinstance(file, bytes):
-        return {"file": ("document.pdf", file, "application/pdf")}, None
-
-    name = getattr(file, "name", "document.pdf")
-    if hasattr(name, "split"):
-        name = Path(name).name
-    return {"file": (name, file, "application/pdf")}, None
 
 
 def _jobs_from_response(

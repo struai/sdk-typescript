@@ -8,6 +8,7 @@ from ._base import DEFAULT_BASE_URL, DEFAULT_TIMEOUT, AsyncBaseClient, BaseClien
 from ._exceptions import StruAIError
 from .resources.drawings import AsyncDrawings, Drawings
 from .resources.projects import AsyncProjects, Projects
+from .resources.reviews import AsyncReviews, Reviews
 
 
 class StruAI(BaseClient):
@@ -68,6 +69,11 @@ class StruAI(BaseClient):
         """Tier 2: project ingest and DocQuery traversal API."""
         return Projects(self)
 
+    @cached_property
+    def reviews(self) -> Reviews:
+        """Tier 3: async review orchestration API."""
+        return Reviews(self)
+
 
 class AsyncStruAI(AsyncBaseClient):
     """Async StruAI client for drawing analysis API.
@@ -113,3 +119,8 @@ class AsyncStruAI(AsyncBaseClient):
     def projects(self) -> AsyncProjects:
         """Tier 2: project ingest and DocQuery traversal API."""
         return AsyncProjects(self)
+
+    @cached_property
+    def reviews(self) -> AsyncReviews:
+        """Tier 3: async review orchestration API."""
+        return AsyncReviews(self)

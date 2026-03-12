@@ -1,4 +1,5 @@
 """StruAI exceptions."""
+
 from typing import Optional
 
 import httpx
@@ -101,3 +102,11 @@ class JobFailedError(StruAIError):
         super().__init__(message)
         self.job_id = job_id
         self.error = error
+
+
+class ReviewFailedError(StruAIError):
+    """Async review failed."""
+
+    def __init__(self, message: str, *, review_id: str):
+        super().__init__(message)
+        self.review_id = review_id

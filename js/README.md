@@ -36,6 +36,21 @@ const jobOrBatch = await project.sheets.add(null, {
 
 const search = await project.docquery.search('beam connection', { limit: 5 });
 console.log(search.hits.length);
+
+const review = await client.reviews.create({
+  fileHash: await client.drawings.computeFileHash('/absolute/path/to/structural.pdf'),
+  pages: '12,13',
+  projectIds: [project.id],
+  customInstructions: 'Focus on cross-sheet coordination.',
+});
+const finalReview = await review.wait({ timeoutMs: 900_000, pollIntervalMs: 5_000 });
+console.log(finalReview.status, (await review.issues()).length);
+
+const uploadReview = await client.reviews.create({
+  file: '/absolute/path/to/structural.pdf',
+  pages: 12,
+});
+console.log(uploadReview.id);
 ```
 
 ## Real Workflow Examples
@@ -56,6 +71,16 @@ node scripts/projects_workflow.mjs
 
 # Optional cleanup after full workflow
 STRUAI_CLEANUP=1 node scripts/projects_workflow.mjs
+
+# Review workflow (start + refresh)
+STRUAI_API_KEY=... STRUAI_BASE_URL=https://api.stru.ai \
+STRUAI_REVIEW_FILE_HASH=your_file_hash STRUAI_REVIEW_PAGES=13 \
+node scripts/reviews_workflow.mjs
+
+# Review workflow (wait for terminal status)
+STRUAI_API_KEY=... STRUAI_BASE_URL=https://api.stru.ai \
+STRUAI_REVIEW_FILE_HASH=your_file_hash STRUAI_REVIEW_PAGES=13 STRUAI_REVIEW_WAIT=1 \
+node scripts/reviews_workflow.mjs
 ```
 
 See `scripts/README.md` for quick copy/paste commands.
@@ -67,6 +92,7 @@ See `scripts/README.md` for quick copy/paste commands.
 - `new StruAI({ apiKey, baseUrl?, timeout? })`
 - `client.drawings`
 - `client.projects`
+- `client.reviews`
 
 ### Drawings (`client.drawings`)
 
@@ -83,6 +109,15 @@ See `scripts/README.md` for quick copy/paste commands.
 - `open(projectId, { name?, description? }?) -> ProjectInstance`
 - `delete(projectId) -> Promise<ProjectDeleteResult>`
 
+### Reviews Top-Level (`client.reviews`)
+
+- `create({ file?, pages, fileHash?, projectIds?, customInstructions? }) -> Promise<ReviewInstance>`
+  - Pass exactly one of `file` or `fileHash`.
+  - Throws if both are missing or both are provided.
+- `list({ status? }?) -> Promise<Review[]>`
+- `get(reviewId) -> Promise<ReviewInstance>`
+- `open(reviewId) -> ReviewInstance`
+
 ### Project Instance (`project`)
 
 Properties:
@@ -93,6 +128,22 @@ Properties:
 Methods:
 
 - `delete() -> Promise<ProjectDeleteResult>`
+
+### Review Instance (`review`)
+
+Properties:
+
+- `id`, `data`
+
+Methods:
+
+- `refresh() -> Promise<Review>`
+- `status() -> Promise<Review>`
+- `wait({ timeoutMs?, pollIntervalMs? }?) -> Promise<Review>`
+  - Rejects if the review reaches `failed`.
+  - Rejects if the timeout elapses first.
+- `questions() -> Promise<ReviewQuestion[]>`
+- `issues() -> Promise<ReviewIssue[]>`
 
 ### Sheets (`project.sheets`)
 
@@ -143,6 +194,20 @@ console.log(cypher.records[0]?.total, crop.output_path, crop.bytes_written);
 - `statusAll() -> Promise<JobStatus[]>`
 - `waitAll({ timeoutMs?, pollIntervalMs? }?) -> Promise<SheetResult[]>`
 
+### Reviews
+
+`Review`:
+
+- `review_id`, `status`, `total_pages`, `pages`, `progress`
+- `is_running`, `is_complete`, `is_partial`, `is_failed`, `is_terminal`
+- Status values: `running`, `completed`, `completed_partial`, `failed`
+- `pages` and `total_pages` are populated by `POST /v1/reviews`; later `refresh()` / `get()` calls reflect the slimmer `GET /v1/reviews/{review_id}` payload and may omit them.
+- `progress.specialist.active` contains live in-progress specialist rows with `question_id`, `agent`, `turns_used`, `max_turns`, and `updated_at` when the server exposes them.
+
+`ReviewQuestion`:
+
+- Includes `raw_model_output`, preserved as nested JSON when present.
+
 ## Endpoint Coverage
 
 Tier 1:
@@ -164,6 +229,11 @@ Tier 2:
 - `GET /v1/projects/{project_id}/neighbors`
 - `POST /v1/projects/{project_id}/cypher`
 - `POST /v1/projects/{project_id}/crop`
+- `POST /v1/reviews`
+- `GET /v1/reviews`
+- `GET /v1/reviews/{review_id}`
+- `GET /v1/reviews/{review_id}/questions`
+- `GET /v1/reviews/{review_id}/issues`
 
 ## License
 

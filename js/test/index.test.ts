@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Job, JobBatch, StruAI } from '../src/index';
+import { APIError, Job, JobBatch, StruAI } from '../src/index';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -156,6 +156,201 @@ describe('StruAI JS SDK', () => {
     expect((init as RequestInit).method).toBe('POST');
     expect((init as RequestInit).body).toBe(
       JSON.stringify({ bbox: [10, 15, 50, 45], page_hash: 'page_hash_1' })
+    );
+  });
+
+  it('creates, waits, and reads review resources', async () => {
+    const fetchMock = vi
+      .fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          review_id: 'rev_1',
+          status: 'running',
+          total_pages: 1,
+          pages: [{ page_number: 13, page_hash: 'page_hash_13', project_id: 'proj_1' }],
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          review_id: 'rev_1',
+          status: 'completed_partial',
+          progress: {
+            scout: {
+              pending: 0,
+              in_progress: 0,
+              completed: 1,
+              failed: 0,
+              total: 1,
+            },
+            specialist: {
+              pending: 0,
+              in_progress: 0,
+              completed: 3,
+              failed: 0,
+              out_of_scope: 1,
+              total: 4,
+              max_turns: 30,
+              active: [
+                {
+                  question_id: 'q_1',
+                  agent: 'cross_reference',
+                  turns_used: 2,
+                  max_turns: 30,
+                  updated_at: '2026-03-10T10:05:00Z',
+                },
+              ],
+            },
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          review_id: 'rev_1',
+          questions: [
+            {
+              question_id: 'q_1',
+              review_id: 'rev_1',
+              source: 'scout',
+              status: 'completed',
+              page_hash: 'page_hash_13',
+              project_id: 'proj_1',
+              question: 'Check the slab note.',
+              assigned_agents: ['cross_reference'],
+              raw_model_output: { issues: [], new_questions: [] },
+            },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          review_id: 'rev_1',
+          issues: [
+            {
+              issue_id: 'iss_1',
+              review_id: 'rev_1',
+              question_id: 'q_1',
+              project_id: 'proj_1',
+              page_hash: 'page_hash_13',
+              agent: 'cross_reference',
+              priority: 'P1',
+              title: 'Missing referenced section',
+              description: 'Callout references a missing section.',
+              evidence: ['Detail callout text reads 4/S312.'],
+            },
+          ],
+        })
+      );
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = new StruAI({ apiKey: 'k', baseUrl: 'http://localhost:8000' });
+    const review = await client.reviews.create({
+      fileHash: 'abc123def4567890',
+      pages: '13',
+      projectIds: ['proj_1'],
+      customInstructions: 'Focus on cross-sheet coordination.',
+    });
+
+    expect(review.id).toBe('rev_1');
+    expect(review.data.pages?.[0]?.page_hash).toBe('page_hash_13');
+
+    const finalReview = await review.wait({ timeoutMs: 1_000, pollIntervalMs: 0 });
+    expect(finalReview.is_partial).toBe(true);
+    expect(finalReview.progress?.specialist?.max_turns).toBe(30);
+    expect(finalReview.progress?.specialist?.active?.[0]?.question_id).toBe('q_1');
+
+    const questions = await review.questions();
+    const issues = await review.issues();
+
+    expect(questions[0].raw_model_output).toEqual({ issues: [], new_questions: [] });
+    expect(issues[0].priority).toBe('P1');
+
+    const [createUrl, createInit] = fetchMock.mock.calls[0];
+    expect(createUrl).toBe('http://localhost:8000/v1/reviews');
+    expect((createInit as RequestInit).method).toBe('POST');
+    expect((createInit as RequestInit).body).toBe(
+      JSON.stringify({
+        file_hash: 'abc123def4567890',
+        pages: '13',
+        project_ids: ['proj_1'],
+        custom_instructions: 'Focus on cross-sheet coordination.',
+      })
+    );
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'http://localhost:8000/v1/reviews',
+      'http://localhost:8000/v1/reviews/rev_1',
+      'http://localhost:8000/v1/reviews/rev_1/questions',
+      'http://localhost:8000/v1/reviews/rev_1/issues',
+    ]);
+  });
+
+  it('creates a review with multipart upload fields', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'struai-review-'));
+    const pdfPath = path.join(tmpDir, 'sample.pdf');
+    await fs.writeFile(pdfPath, Buffer.from('%PDF-1.4\n'));
+
+    const fetchMock = vi
+      .fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          review_id: 'rev_upload_1',
+          status: 'running',
+          total_pages: 1,
+          pages: [{ page_number: 13, page_hash: 'page_hash_13', project_id: 'proj_1' }],
+        })
+      );
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = new StruAI({ apiKey: 'k', baseUrl: 'http://localhost:8000' });
+    const review = await client.reviews.create({
+      file: pdfPath,
+      pages: 13,
+      projectIds: ['proj_a', 'proj_b'],
+      customInstructions: 'Focus on seismic detailing.',
+    });
+
+    expect(review.id).toBe('rev_upload_1');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://localhost:8000/v1/reviews');
+    expect((init as RequestInit).method).toBe('POST');
+    const formData = (init as RequestInit).body as FormData;
+    expect(formData.get('pages')).toBe('13');
+    expect(formData.getAll('project_ids')).toEqual(['proj_a', 'proj_b']);
+    expect(formData.get('custom_instructions')).toBe('Focus on seismic detailing.');
+    const file = formData.get('file') as File;
+    expect(file.name).toBe('sample.pdf');
+    expect(file.type).toBe('application/pdf');
+  });
+
+  it('lists, gets, opens, and fails review wait correctly', async () => {
+    const fetchMock = vi
+      .fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          reviews: [{ review_id: 'rev_list_1', status: 'completed', file_hash: 'file_hash_1' }],
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse({ review_id: 'rev_1', status: 'failed' }))
+      .mockResolvedValueOnce(jsonResponse({ review_id: 'rev_2', status: 'failed' }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = new StruAI({ apiKey: 'k', baseUrl: 'http://localhost:8000' });
+
+    const listed = await client.reviews.list({ status: 'completed' });
+    expect(listed[0].review_id).toBe('rev_list_1');
+    expect(listed[0].is_complete).toBe(true);
+
+    const fetched = await client.reviews.get('rev_1');
+    expect(fetched.id).toBe('rev_1');
+    expect(fetched.data.is_failed).toBe(true);
+
+    const failedReview = client.reviews.open('rev_2');
+    await expect(failedReview.wait({ timeoutMs: 1_000, pollIntervalMs: 0 })).rejects.toThrow(
+      'Review rev_2 failed'
     );
   });
 });

@@ -32,4 +32,12 @@ STRUAI_PAGE=12 STRUAI_CLEANUP=1 node scripts/projects_workflow.mjs
 
 # Fast local surface smoke
 node scripts/smoke_local.mjs
+
+# Review workflow (start + refresh)
+STRUAI_REVIEW_FILE_HASH=your_file_hash STRUAI_REVIEW_PAGES=13 \
+node scripts/reviews_workflow.mjs
+
+# Review workflow (wait for terminal status)
+STRUAI_REVIEW_FILE_HASH=your_file_hash STRUAI_REVIEW_PAGES=13 \
+STRUAI_REVIEW_WAIT=1 node scripts/reviews_workflow.mjs
 ```

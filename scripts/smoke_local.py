@@ -7,6 +7,9 @@ Usage:
 Optional:
   STRUAI_PDF=/path/to.pdf STRUAI_PAGE=12   # ingest sheet(s)
   STRUAI_SEARCH="GB18x18"                 # run docquery search
+  STRUAI_REVIEW_FILE_HASH=abc123...       # start a review by existing file_hash
+  STRUAI_REVIEW_PAGES=13                  # page selector for review
+  STRUAI_REVIEW_PROJECT_IDS=proj_1,proj_2 # optional CSV project ids
 """
 
 from __future__ import annotations
@@ -60,6 +63,27 @@ def main() -> None:
     if search_query:
         results = project.docquery.search(query=search_query, limit=3)
         print(f"search_count={len(results.hits)}")
+
+    review_file_hash = os.getenv("STRUAI_REVIEW_FILE_HASH")
+    if review_file_hash:
+        review_pages = os.getenv("STRUAI_REVIEW_PAGES", "13")
+        review_project_ids = [
+            project_id.strip()
+            for project_id in os.getenv("STRUAI_REVIEW_PROJECT_IDS", "").split(",")
+            if project_id.strip()
+        ]
+        review = client.reviews.create(
+            file_hash=review_file_hash,
+            pages=review_pages,
+            project_ids=review_project_ids or None,
+        )
+        latest = review.refresh()
+        specialist = latest.progress.specialist if latest.progress else None
+        print(
+            f"review_id={review.id} status={latest.status} "
+            f"specialist_total={getattr(specialist, 'total', 0)} "
+            f"specialist_active={len(getattr(specialist, 'active', []) or [])}"
+        )
 
     if created:
         project.delete()

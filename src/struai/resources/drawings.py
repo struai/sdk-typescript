@@ -4,30 +4,14 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import TYPE_CHECKING, BinaryIO, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Optional
 
 from .._exceptions import NotFoundError
 from ..models.drawings import DrawingCacheStatus, DrawingResult
+from ._uploads import Uploadable, _prepare_file
 
 if TYPE_CHECKING:
     from .._base import AsyncBaseClient, BaseClient
-
-Uploadable = Union[str, Path, bytes, BinaryIO]
-PreparedUpload = Tuple[dict, Optional[BinaryIO]]
-
-
-def _prepare_file(file: Uploadable) -> PreparedUpload:
-    if isinstance(file, (str, Path)):
-        path = Path(file)
-        handle = open(path, "rb")
-        return {"file": (path.name, handle, "application/pdf")}, handle
-    if isinstance(file, bytes):
-        return {"file": ("document.pdf", file, "application/pdf")}, None
-
-    name = getattr(file, "name", "document.pdf")
-    if hasattr(name, "split"):
-        name = Path(name).name
-    return {"file": (name, file, "application/pdf")}, None
 
 
 class Drawings:

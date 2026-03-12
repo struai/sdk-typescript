@@ -5,6 +5,7 @@ DocQuery CLI parity in SDK: 10 operations (`client.projects.list` + 9 `project.d
 
 Page-12 full command cookbook:
 - `PAGE12_COOKBOOK.md`
+- `REVIEWS_QUICKSTART.md`
 
 ## Prerequisites
 
@@ -36,4 +37,10 @@ python3 test_prod_page12_full.py --page 12 --cleanup
 
 # Async full workflow
 python3 async_projects_workflow.py --page 12
+
+# Review workflow (start + refresh)
+python3 review_workflow.py --file-hash your_file_hash --pages 13
+
+# Review workflow (wait for terminal status)
+python3 review_workflow.py --file-hash your_file_hash --pages 13 --wait
 ```

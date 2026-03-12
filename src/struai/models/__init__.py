@@ -39,6 +39,19 @@ from .projects import (
     SheetIngestResponse,
     SheetResult,
 )
+from .reviews import (
+    Review,
+    ReviewActiveSpecialist,
+    ReviewIssue,
+    ReviewIssuesResult,
+    ReviewListResponse,
+    ReviewPage,
+    ReviewProgress,
+    ReviewProgressCounts,
+    ReviewQuestion,
+    ReviewQuestionsResult,
+    ReviewSpecialistProgress,
+)
 
 __all__ = [
     "Point",
@@ -65,6 +78,17 @@ __all__ = [
     "JobStatusEvent",
     "JobStepTiming",
     "JobStepRef",
+    "Review",
+    "ReviewActiveSpecialist",
+    "ReviewPage",
+    "ReviewProgress",
+    "ReviewProgressCounts",
+    "ReviewSpecialistProgress",
+    "ReviewListResponse",
+    "ReviewQuestion",
+    "ReviewQuestionsResult",
+    "ReviewIssue",
+    "ReviewIssuesResult",
     "DocQuerySummary",
     "DocQueryNodeGetResult",
     "DocQuerySheetEntitiesResult",

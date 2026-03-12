@@ -24,6 +24,17 @@
 
 ## Unreleased
 
+### Features
+
+- Add first-class review support to the Python and JavaScript SDKs:
+  - `client.reviews.create/list/get/open`
+  - review handles with `refresh/status/wait/questions/issues`
+  - typed review, question, and issue models for `/v1/reviews`
+
+### Documentation
+
+- Document review status values, wait semantics, and file-upload usage for the new reviews surface
+
 ### Breaking Changes
 
 - Hard-cut SDK contracts to current drawing router API:

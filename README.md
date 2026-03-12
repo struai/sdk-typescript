@@ -39,6 +39,23 @@ sheet = job.wait(timeout=180)
 
 hits = project.docquery.search("beam connection", limit=5)
 print(len(hits.hits))
+
+# Tier 3: reviews
+review = client.reviews.create(
+    file_hash=client.drawings.compute_file_hash("structural.pdf"),
+    pages="12,13",
+    project_ids=[project.id],
+    custom_instructions="Focus on cross-sheet coordination.",
+)
+final_review = review.wait(timeout=900, poll_interval=5)
+print(final_review.status, len(review.issues()))
+
+# Direct upload path also works
+upload_review = client.reviews.create(
+    file="structural.pdf",
+    pages=12,
+)
+print(upload_review.id)
 ```
 
 ## Real Workflow Examples
@@ -62,10 +79,17 @@ python3 examples/test_prod_page12_full.py --pdf /absolute/path/to/structural.pdf
 
 # Async workflow
 python3 examples/async_projects_workflow.py --pdf /absolute/path/to/structural.pdf --page 12
+
+# Review workflow (start + refresh)
+python3 examples/review_workflow.py --file-hash your_file_hash --pages 13
+
+# Review workflow (wait for terminal status)
+python3 examples/review_workflow.py --file-hash your_file_hash --pages 13 --wait
 ```
 
 Page-12 cookbook with all 10 operations (including `cypher` and `crop`):
 - `examples/PAGE12_COOKBOOK.md`
+- `examples/REVIEWS_QUICKSTART.md`
 
 JavaScript examples (`/js/scripts`):
 
@@ -101,6 +125,7 @@ Async API (`AsyncStruAI`) mirrors the same resource shape and method names; use 
 - `AsyncStruAI(api_key=None, base_url="https://api.stru.ai", timeout=60, max_retries=2)`
 - `client.drawings`
 - `client.projects`
+- `client.reviews`
 
 ### Drawings (`client.drawings`)
 
@@ -115,6 +140,15 @@ Async API (`AsyncStruAI`) mirrors the same resource shape and method names; use 
 - `open(project_id, name=None, description=None) -> ProjectInstance`
 - `delete(project_id) -> ProjectDeleteResult`
 
+### Reviews Top-Level (`client.reviews`)
+
+- `create(file=None, pages=1|"1,3,5-7"|"all", file_hash=None, project_ids=None, custom_instructions=None) -> ReviewInstance`
+  - Pass exactly one of `file` or `file_hash`.
+  - Raises `ValueError` if both are missing or both are provided.
+- `list(status=None) -> list[Review]`
+- `get(review_id) -> ReviewInstance`
+- `open(review_id) -> ReviewInstance`
+
 ### Project Instance (`project`)
 
 Properties:
@@ -125,6 +159,22 @@ Properties:
 Methods:
 
 - `delete() -> ProjectDeleteResult`
+
+### Review Instance (`review`)
+
+Properties:
+
+- `id`, `data`
+
+Methods:
+
+- `refresh() -> Review`
+- `status() -> Review`
+- `wait(timeout=900, poll_interval=5) -> Review`
+  - Raises `ReviewFailedError` if the review reaches `failed`.
+  - Raises `TimeoutError` if the timeout elapses first.
+- `questions() -> list[ReviewQuestion]`
+- `issues() -> list[ReviewIssue]`
 
 ### Sheets (`project.sheets`)
 
@@ -177,6 +227,20 @@ print(rows.records[0]["total"], crop.output_path, crop.bytes_written)
 - `status_all() -> list[JobStatus]`
 - `wait_all(timeout_per_job=120, poll_interval=2) -> list[SheetResult]`
 
+### Reviews
+
+`Review`:
+
+- `review_id`, `status`, `total_pages`, `pages`, `progress`
+- `is_running`, `is_complete`, `is_partial`, `is_failed`, `is_terminal`
+- Status values: `running`, `completed`, `completed_partial`, `failed`
+- `pages` and `total_pages` are populated by `POST /v1/reviews`; later `refresh()` / `get()` calls reflect the slimmer `GET /v1/reviews/{review_id}` payload and may omit them.
+- `progress.specialist.active` contains live in-progress specialist rows with `question_id`, `agent`, `turns_used`, `max_turns`, and `updated_at` when the server exposes them.
+
+`ReviewQuestion`:
+
+- Includes `raw_model_output`, which is preserved as nested JSON when present.
+
 ## HTTP Endpoints Covered
 
 Tier 1:
@@ -198,6 +262,11 @@ Tier 2:
 - `GET /v1/projects/{project_id}/neighbors`
 - `POST /v1/projects/{project_id}/cypher`
 - `POST /v1/projects/{project_id}/crop`
+- `POST /v1/reviews`
+- `GET /v1/reviews`
+- `GET /v1/reviews/{review_id}`
+- `GET /v1/reviews/{review_id}/questions`
+- `GET /v1/reviews/{review_id}/issues`
 
 ## JavaScript Reference
 

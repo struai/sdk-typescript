@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v2.6.1 (2026-03-13)
+
+### Bug Fixes
+
+- Remove internal review debug endpoints from SDK
+  ([`7f2be61`](https://github.com/bhoshaga/struai/commit/7f2be619a39b009e6df408b586feb6b70a088ab5))
+
+
 ## v2.6.0 (2026-03-13)
 
 ### Features

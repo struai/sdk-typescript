@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v2.6.0 (2026-03-13)
+
+### Features
+
+- Align SDK reviews with latest server contract
+  ([`3114953`](https://github.com/bhoshaga/struai/commit/31149532f54cb14430810388f55ad9b75396319b))
+
+
 ## v2.5.0 (2026-03-13)
 
 ### Features

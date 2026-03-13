@@ -35,12 +35,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bhoshaga/struai.git",
-    "directory": "js"
+    "url": "git+https://github.com/struai/sdk-typescript.git"
   },
   "homepage": "https://struai.com",
   "bugs": {
-    "url": "https://github.com/bhoshaga/struai/issues"
+    "url": "https://github.com/struai/sdk-typescript/issues"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

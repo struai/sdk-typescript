@@ -219,8 +219,6 @@ Methods:
   - Raises `TimeoutError` if the timeout elapses first.
 - `questions() -> list[ReviewQuestion]`
 - `issues() -> list[ReviewIssue]`
-- `logs() -> ReviewLogsResult`
-- `artifact(artifact_key, output=...) -> ReviewArtifactResult`
 
 ### Sheets (`project.sheets`)
 

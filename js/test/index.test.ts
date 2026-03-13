@@ -387,38 +387,6 @@ describe('StruAI JS SDK', () => {
     ).rejects.toThrow('Missing from scout text');
   });
 
-  it('fetches review logs and downloads artifacts', async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'struai-review-artifact-'));
-    const outputPath = path.join(tmpDir, 'artifact.png');
-
-    const fetchMock = vi
-      .fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>()
-      .mockResolvedValueOnce(
-        jsonResponse({
-          review_id: 'rev_1',
-          files: [{ name: 'summary.jsonl', size_bytes: 1234, line_count: 1, entries: [] }],
-        })
-      )
-      .mockResolvedValueOnce(pngResponse(new Uint8Array([80, 78, 71])));
-
-    vi.stubGlobal('fetch', fetchMock);
-
-    const client = new StruAI({ apiKey: 'k', baseUrl: 'http://localhost:8000' });
-    const review = client.reviews.open('rev_1');
-
-    const logs = await review.logs();
-    expect(logs.files[0].name).toBe('summary.jsonl');
-
-    const artifact = await review.artifact({ artifactKey: 'art_1', output: outputPath });
-    expect(artifact.bytes_written).toBe(3);
-    expect(await fs.readFile(outputPath)).toEqual(Buffer.from([80, 78, 71]));
-
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      'http://localhost:8000/v1/reviews/rev_1/logs',
-      'http://localhost:8000/v1/reviews/rev_1/artifacts/art_1',
-    ]);
-  });
-
   it('lists, gets, opens, and fails review wait correctly', async () => {
     const fetchMock = vi
       .fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>()

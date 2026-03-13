@@ -149,28 +149,3 @@ class ReviewIssuesResult(SDKBaseModel):
 
     review_id: str
     issues: List[ReviewIssue] = Field(default_factory=list)
-
-
-class ReviewLogFile(SDKBaseModel):
-    """One JSONL log file returned by GET /v1/reviews/{review_id}/logs."""
-
-    name: str
-    size_bytes: int
-    line_count: int
-    entries: List[Any] = Field(default_factory=list)
-
-
-class ReviewLogsResult(SDKBaseModel):
-    """Response for GET /v1/reviews/{review_id}/logs."""
-
-    review_id: str
-    files: List[ReviewLogFile] = Field(default_factory=list)
-
-
-class ReviewArtifactResult(SDKBaseModel):
-    """Local file result returned by review artifact download helpers."""
-
-    ok: bool = True
-    output_path: str
-    bytes_written: int
-    content_type: str

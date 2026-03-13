@@ -170,8 +170,6 @@ Methods:
   - Rejects if the timeout elapses first.
 - `questions() -> Promise<ReviewQuestion[]>`
 - `issues() -> Promise<ReviewIssue[]>`
-- `logs() -> Promise<ReviewLogsResult>`
-- `artifact({ artifactKey, output }) -> Promise<ReviewArtifactResult>`
 
 ### Sheets (`project.sheets`)
 

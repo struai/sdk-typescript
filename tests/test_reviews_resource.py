@@ -151,22 +151,6 @@ class FakeReviewClient:
                     }
                 ],
             }
-        elif path == "/reviews/rev_1/logs":
-            payload = {
-                "review_id": "rev_1",
-                "files": [
-                    {
-                        "name": "summary.jsonl",
-                        "size_bytes": 1234,
-                        "line_count": 1,
-                        "entries": [
-                            {"event": "finish", "instructions": "..."},
-                        ],
-                    }
-                ],
-            }
-        elif path == "/reviews/rev_1/artifacts/art_1":
-            payload = b"PNGDATA"
         else:
             raise AssertionError(f"unexpected GET {path}")
 
@@ -307,15 +291,12 @@ def test_review_wait_questions_and_issues_use_expected_endpoints() -> None:
 
     questions = review.questions()
     issues = review.issues()
-    logs = review.logs()
-
     assert len(questions) == 1
     assert questions[0].assigned_agents == ["cross_reference"]
     assert isinstance(questions[0].raw_model_output, dict)
     assert questions[0].raw_model_output["issues"] == []
     assert len(issues) == 1
     assert issues[0].priority == "P1"
-    assert logs.files[0].name == "summary.jsonl"
 
     paths = [call["path"] for call in client.gets]
     assert paths == [
@@ -323,7 +304,6 @@ def test_review_wait_questions_and_issues_use_expected_endpoints() -> None:
         "/reviews/rev_1",
         "/reviews/rev_1/questions",
         "/reviews/rev_1/issues",
-        "/reviews/rev_1/logs",
     ]
 
 
@@ -383,17 +363,6 @@ def test_reviews_create_requires_exact_specialist_names_in_scout() -> None:
                 {"name": "Cross Reference Checker", "instructions": "Trace all references."}
             ],
         )
-
-
-def test_review_artifact_download_writes_png(tmp_path: Path) -> None:
-    client = FakeReviewClient()
-    review = Reviews(client).open("rev_1")
-
-    result = review.artifact("art_1", output=tmp_path / "artifact.png")
-
-    assert result.ok is True
-    assert result.bytes_written == 7
-    assert (tmp_path / "artifact.png").read_bytes() == b"PNGDATA"
 
 
 def test_review_wait_raises_on_failed_status() -> None:

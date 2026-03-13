@@ -223,25 +223,6 @@ export interface ReviewSpecialistInput {
   instructions: string;
 }
 
-export interface ReviewLogFile {
-  name: string;
-  size_bytes: number;
-  line_count: number;
-  entries: JSONValue[];
-}
-
-export interface ReviewLogsResult {
-  review_id: string;
-  files: ReviewLogFile[];
-}
-
-export interface ReviewArtifactResult {
-  ok: boolean;
-  output_path: string;
-  bytes_written: number;
-  content_type: string;
-}
-
 export interface JobSummary {
   job_id: string;
   page: number;
@@ -1504,32 +1485,6 @@ class ReviewInstance {
   async issues(): Promise<ReviewIssue[]> {
     const response = await this.client.request<ReviewIssuesResult>(`/reviews/${this.id}/issues`);
     return response.issues ?? [];
-  }
-
-  async logs(): Promise<ReviewLogsResult> {
-    return this.client.request<ReviewLogsResult>(`/reviews/${this.id}/logs`);
-  }
-
-  async artifact(options: { artifactKey: string; output: string }): Promise<ReviewArtifactResult> {
-    const artifactKey = requireText(options.artifactKey, 'artifactKey');
-    const output = requireText(options.output, 'output');
-    const path = await import('node:path');
-    const fs = await import('node:fs/promises');
-
-    const outputPath = path.resolve(process.cwd(), output);
-    await fs.mkdir(path.dirname(outputPath), { recursive: true });
-
-    const bytesResponse = await this.client.requestBytes(
-      `/reviews/${this.id}/artifacts/${encodeURIComponent(artifactKey)}`
-    );
-    await fs.writeFile(outputPath, Buffer.from(bytesResponse.bytes));
-
-    return {
-      ok: true,
-      output_path: outputPath,
-      bytes_written: bytesResponse.bytes.length,
-      content_type: bytesResponse.contentType ?? 'image/png',
-    };
   }
 
   async wait(options?: { timeoutMs?: number; pollIntervalMs?: number }): Promise<Review> {

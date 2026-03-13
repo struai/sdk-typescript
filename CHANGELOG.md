@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v2.5.0 (2026-03-13)
+
+### Features
+
+- Add custom review team support to SDKs
+  ([`2aa09ac`](https://github.com/bhoshaga/struai/commit/2aa09ac3d8d03955b4d77c56cd564943716aea87))
+
+
 ## v2.4.0 (2026-03-12)
 
 ### Chores

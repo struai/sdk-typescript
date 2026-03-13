@@ -52,7 +52,7 @@ const customReview = await client.reviews.create({
   fileHash: await client.drawings.computeFileHash('/absolute/path/to/structural.pdf'),
   pages: '13',
   projectIds: [project.id],
-  scout: 'Look broadly for issues worth deeper investigation.',
+  scout: 'Route broken references to Cross Reference Checker and buildability gaps to Constructability Reviewer.',
   specialistsCommon: 'All specialists should stay grounded in DocQuery/search-docs evidence.',
   specialists: [
     { name: 'Cross Reference Checker', instructions: 'Trace all detail, section, and sheet references.' },
@@ -138,6 +138,7 @@ See `scripts/README.md` for quick copy/paste commands.
   - Pass exactly one of `file` or `fileHash`.
   - Throws if both are missing or both are provided.
   - `specialists` must be a non-empty array of `{name, instructions}` objects when provided.
+  - When `specialists` is provided, `scout` is also required and must reference each specialist by exact name.
   - Omit `scout`, `specialistsCommon`, and `specialists` to use the default review team.
 - `list({ status? }?) -> Promise<Review[]>`
 - `get(reviewId) -> Promise<ReviewInstance>`
@@ -169,6 +170,8 @@ Methods:
   - Rejects if the timeout elapses first.
 - `questions() -> Promise<ReviewQuestion[]>`
 - `issues() -> Promise<ReviewIssue[]>`
+- `logs() -> Promise<ReviewLogsResult>`
+- `artifact({ artifactKey, output }) -> Promise<ReviewArtifactResult>`
 
 ### Sheets (`project.sheets`)
 

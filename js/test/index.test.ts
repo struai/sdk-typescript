@@ -248,7 +248,8 @@ describe('StruAI JS SDK', () => {
       fileHash: 'abc123def4567890',
       pages: '13',
       projectIds: ['proj_1'],
-      scout: 'Scout custom block',
+      scout:
+        'Route broken references to Cross Reference Checker and buildability gaps to Constructability Reviewer.',
       specialistsCommon: 'Shared specialist block',
       specialists: [
         { name: 'Cross Reference Checker', instructions: 'Trace all references.' },
@@ -279,7 +280,8 @@ describe('StruAI JS SDK', () => {
         file_hash: 'abc123def4567890',
         pages: '13',
         project_ids: ['proj_1'],
-        scout: 'Scout custom block',
+        scout:
+          'Route broken references to Cross Reference Checker and buildability gaps to Constructability Reviewer.',
         specialists_common: 'Shared specialist block',
         specialists: [
           { name: 'Cross Reference Checker', instructions: 'Trace all references.' },
@@ -320,7 +322,7 @@ describe('StruAI JS SDK', () => {
       file: pdfPath,
       pages: 13,
       projectIds: ['proj_a', 'proj_b'],
-      scout: 'Scout multipart block',
+      scout: 'Route all review questions to Cross Reference Checker.',
       specialistsCommon: 'Shared multipart specialist block',
       specialists: [{ name: 'Cross Reference Checker', instructions: 'Trace all references.' }],
       customInstructions: 'Focus on seismic detailing.',
@@ -334,7 +336,7 @@ describe('StruAI JS SDK', () => {
     const formData = (init as RequestInit).body as FormData;
     expect(formData.get('pages')).toBe('13');
     expect(formData.getAll('project_ids')).toEqual(['proj_a', 'proj_b']);
-    expect(formData.get('scout')).toBe('Scout multipart block');
+    expect(formData.get('scout')).toBe('Route all review questions to Cross Reference Checker.');
     expect(formData.get('specialists_common')).toBe('Shared multipart specialist block');
     expect(formData.get('specialists')).toBe(
       JSON.stringify([{ name: 'Cross Reference Checker', instructions: 'Trace all references.' }])
@@ -358,6 +360,63 @@ describe('StruAI JS SDK', () => {
         ],
       })
     ).rejects.toThrow('specialists names must be unique');
+  });
+
+  it('requires scout when specialists are provided', async () => {
+    const client = new StruAI({ apiKey: 'k', baseUrl: 'http://localhost:8000' });
+
+    await expect(
+      client.reviews.create({
+        fileHash: 'abc123def4567890',
+        pages: '13',
+        specialists: [{ name: 'Cross Reference Checker', instructions: 'Trace all references.' }],
+      })
+    ).rejects.toThrow('scout is also required');
+  });
+
+  it('requires exact specialist names inside scout', async () => {
+    const client = new StruAI({ apiKey: 'k', baseUrl: 'http://localhost:8000' });
+
+    await expect(
+      client.reviews.create({
+        fileHash: 'abc123def4567890',
+        pages: '13',
+        scout: 'Route broken references to cross reference review.',
+        specialists: [{ name: 'Cross Reference Checker', instructions: 'Trace all references.' }],
+      })
+    ).rejects.toThrow('Missing from scout text');
+  });
+
+  it('fetches review logs and downloads artifacts', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'struai-review-artifact-'));
+    const outputPath = path.join(tmpDir, 'artifact.png');
+
+    const fetchMock = vi
+      .fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          review_id: 'rev_1',
+          files: [{ name: 'summary.jsonl', size_bytes: 1234, line_count: 1, entries: [] }],
+        })
+      )
+      .mockResolvedValueOnce(pngResponse(new Uint8Array([80, 78, 71])));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = new StruAI({ apiKey: 'k', baseUrl: 'http://localhost:8000' });
+    const review = client.reviews.open('rev_1');
+
+    const logs = await review.logs();
+    expect(logs.files[0].name).toBe('summary.jsonl');
+
+    const artifact = await review.artifact({ artifactKey: 'art_1', output: outputPath });
+    expect(artifact.bytes_written).toBe(3);
+    expect(await fs.readFile(outputPath)).toEqual(Buffer.from([80, 78, 71]));
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'http://localhost:8000/v1/reviews/rev_1/logs',
+      'http://localhost:8000/v1/reviews/rev_1/artifacts/art_1',
+    ]);
   });
 
   it('lists, gets, opens, and fails review wait correctly', async () => {

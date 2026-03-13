@@ -332,6 +332,7 @@ Request supports two review modes:
 
 - default review team: omit `scout`, `specialists_common`, and `specialists`
 - custom review team: supply any or all of those fields
+- when `specialists` is supplied, `scout` is also required and must reference each specialist by exact name
 
 ```json
 {
@@ -474,5 +475,46 @@ Request supports two review modes:
       "created_at": "2026-03-07T10:05:00Z"
     }
   ]
+}
+```
+
+### `GET /v1/reviews/{review_id}/logs`
+
+- SDK: `review.logs()`
+- Response model: `ReviewLogsResult`
+
+```json
+{
+  "review_id": "rev_a1b2c3d4e5f6",
+  "files": [
+    {
+      "name": "summary.jsonl",
+      "size_bytes": 18234,
+      "line_count": 12,
+      "entries": [
+        {
+          "run_id": "abcd1234",
+          "agent_name": "Cross Reference Checker",
+          "question_id": "q_123"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### `GET /v1/reviews/{review_id}/artifacts/{artifact_key}`
+
+- SDK: `review.artifact(...)`
+- Response type: `image/png`
+
+The SDK helpers download the PNG to a local path and return:
+
+```json
+{
+  "ok": true,
+  "output_path": "/absolute/path/to/artifact.png",
+  "bytes_written": 182933,
+  "content_type": "image/png"
 }
 ```

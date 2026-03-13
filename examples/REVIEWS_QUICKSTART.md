@@ -43,6 +43,8 @@ export STRUAI_REVIEW_SPECIALISTS_FILE=/absolute/path/to/examples/prompts/page13_
 python3 examples/review_workflow.py --file-hash your_file_hash --pages 13
 ```
 
+When `STRUAI_REVIEW_SPECIALISTS_FILE` is set, the scout prompt must mention each specialist by exact name.
+
 ## JavaScript
 
 Build the SDK first:
@@ -81,6 +83,8 @@ export STRUAI_REVIEW_SPECIALISTS_FILE=/absolute/path/to/examples/prompts/page13_
 
 node scripts/reviews_workflow.mjs
 ```
+
+When `STRUAI_REVIEW_SPECIALISTS_FILE` is set, the scout prompt must mention each specialist by exact name.
 
 ## Quick Checks
 

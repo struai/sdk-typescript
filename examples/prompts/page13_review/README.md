@@ -6,6 +6,11 @@ These files are sample inputs for the custom Tier 3 review workflow.
 - `specialists_common.md`: shared specialist block for the run
 - `specialists.json`: custom specialist set with per-specialist instructions
 
+Important:
+
+- when `specialists.json` is supplied, `scout.md` must mention each specialist by exact name
+- the server validates this and rejects the request if any specialist name is missing from the scout text
+
 Use them with:
 
 ```bash

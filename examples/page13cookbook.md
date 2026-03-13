@@ -45,6 +45,11 @@ Sample prompt assets live in:
 - `examples/prompts/page13_review/specialists.json`
 - `examples/prompts/page13_review/README.md`
 
+Important:
+
+- when you supply `specialists.json`, the scout text must mention each specialist by exact name
+- the server validates this before the review starts
+
 ## Run
 
 From the SDK repo root:

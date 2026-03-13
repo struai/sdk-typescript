@@ -56,7 +56,10 @@ custom_review = client.reviews.create(
     file_hash=client.drawings.compute_file_hash("structural.pdf"),
     pages="13",
     project_ids=[project.id],
-    scout="Look broadly for issues worth deeper investigation.",
+    scout=(
+        "Route broken references to Cross Reference Checker and "
+        "buildability gaps to Constructability Reviewer."
+    ),
     specialists_common="All specialists should stay grounded in DocQuery/search-docs evidence.",
     specialists=[
         {"name": "Cross Reference Checker", "instructions": "Trace all detail, section, and sheet references."},
@@ -184,6 +187,7 @@ Async API (`AsyncStruAI`) mirrors the same resource shape and method names; use 
   - Pass exactly one of `file` or `file_hash`.
   - Raises `ValueError` if both are missing or both are provided.
   - `specialists` must be a non-empty list of `{name, instructions}` objects when provided.
+  - When `specialists` is provided, `scout` is also required and must reference each specialist by exact name.
   - Omit `scout`, `specialists_common`, and `specialists` to use the default review team.
 - `list(status=None) -> list[Review]`
 - `get(review_id) -> ReviewInstance`
@@ -215,6 +219,8 @@ Methods:
   - Raises `TimeoutError` if the timeout elapses first.
 - `questions() -> list[ReviewQuestion]`
 - `issues() -> list[ReviewIssue]`
+- `logs() -> ReviewLogsResult`
+- `artifact(artifact_key, output=...) -> ReviewArtifactResult`
 
 ### Sheets (`project.sheets`)
 

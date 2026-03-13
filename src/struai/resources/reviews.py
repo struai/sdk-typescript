@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import json
+import re
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from .._exceptions import ReviewFailedError, TimeoutError
 from ..models.reviews import (
     Review,
+    ReviewArtifactResult,
     ReviewIssue,
     ReviewIssuesResult,
     ReviewListResponse,
+    ReviewLogsResult,
     ReviewQuestion,
     ReviewQuestionsResult,
 )
@@ -77,6 +81,30 @@ def _normalize_specialists(
     return normalized
 
 
+def _validate_scout_references_specialists(
+    scout: Optional[str],
+    specialists: Optional[List[Dict[str, str]]],
+) -> None:
+    if specialists is None:
+        return
+    if scout is None:
+        raise ValueError(
+            "When specialists are provided, scout is also required and must reference "
+            "each specialist by exact name."
+        )
+
+    missing = [
+        specialist["name"]
+        for specialist in specialists
+        if not re.search(r"(?<!\w)" + re.escape(specialist["name"]) + r"(?!\w)", scout)
+    ]
+    if missing:
+        raise ValueError(
+            "Scout prompt must reference each specialist by exact name. "
+            f"Missing from scout text: {missing}"
+        )
+
+
 def _multipart_form_fields(
     *,
     pages: str,
@@ -136,6 +164,32 @@ class ReviewInstance:
         result = self._client.get(f"/reviews/{self.id}/issues", cast_to=ReviewIssuesResult)
         return result.issues
 
+    def logs(self) -> ReviewLogsResult:
+        """Fetch structured review JSONL logs."""
+        return self._client.get(f"/reviews/{self.id}/logs", cast_to=ReviewLogsResult)
+
+    def artifact(self, artifact_key: str, *, output: Union[str, Path]) -> ReviewArtifactResult:
+        """Download one review artifact PNG to a local file path."""
+        clean_artifact_key = _normalize_text(artifact_key, field_name="artifact_key")
+        output_path = Path(output).expanduser().resolve()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        png_bytes = self._client.get(
+            f"/reviews/{self.id}/artifacts/{clean_artifact_key}",
+            expect_bytes=True,
+        )
+        assert isinstance(png_bytes, bytes)
+        output_path.write_bytes(png_bytes)
+
+        return ReviewArtifactResult.model_validate(
+            {
+                "ok": True,
+                "output_path": str(output_path),
+                "bytes_written": len(png_bytes),
+                "content_type": "image/png",
+            }
+        )
+
     def wait(self, timeout: float = 900, poll_interval: float = 5) -> Review:
         """Wait for the review to reach a terminal state."""
         start = time.time()
@@ -191,6 +245,39 @@ class AsyncReviewInstance:
         )
         return result.issues
 
+    async def logs(self) -> ReviewLogsResult:
+        """Fetch structured review JSONL logs."""
+        return await self._client.get(f"/reviews/{self.id}/logs", cast_to=ReviewLogsResult)
+
+    async def artifact(
+        self,
+        artifact_key: str,
+        *,
+        output: Union[str, Path],
+    ) -> ReviewArtifactResult:
+        """Download one review artifact PNG to a local file path."""
+        import asyncio
+
+        clean_artifact_key = _normalize_text(artifact_key, field_name="artifact_key")
+        output_path = Path(output).expanduser().resolve()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        png_bytes = await self._client.get(
+            f"/reviews/{self.id}/artifacts/{clean_artifact_key}",
+            expect_bytes=True,
+        )
+        assert isinstance(png_bytes, bytes)
+        await asyncio.to_thread(output_path.write_bytes, png_bytes)
+
+        return ReviewArtifactResult.model_validate(
+            {
+                "ok": True,
+                "output_path": str(output_path),
+                "bytes_written": len(png_bytes),
+                "content_type": "image/png",
+            }
+        )
+
     async def wait(self, timeout: float = 900, poll_interval: float = 5) -> Review:
         """Wait for the review to reach a terminal state."""
         import asyncio
@@ -232,6 +319,7 @@ class Reviews:
         specialists_common = _normalize_optional_text(specialists_common)
         specialists = _normalize_specialists(specialists)
         custom_instructions = _normalize_optional_text(custom_instructions)
+        _validate_scout_references_specialists(scout, specialists)
         if file is None and not file_hash:
             raise ValueError("Provide file or file_hash")
         if file is not None and file_hash:
@@ -321,6 +409,7 @@ class AsyncReviews:
         specialists_common = _normalize_optional_text(specialists_common)
         specialists = _normalize_specialists(specialists)
         custom_instructions = _normalize_optional_text(custom_instructions)
+        _validate_scout_references_specialists(scout, specialists)
         if file is None and not file_hash:
             raise ValueError("Provide file or file_hash")
         if file is not None and file_hash:

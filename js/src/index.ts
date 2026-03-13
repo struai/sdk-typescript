@@ -223,6 +223,25 @@ export interface ReviewSpecialistInput {
   instructions: string;
 }
 
+export interface ReviewLogFile {
+  name: string;
+  size_bytes: number;
+  line_count: number;
+  entries: JSONValue[];
+}
+
+export interface ReviewLogsResult {
+  review_id: string;
+  files: ReviewLogFile[];
+}
+
+export interface ReviewArtifactResult {
+  ok: boolean;
+  output_path: string;
+  bytes_written: number;
+  content_type: string;
+}
+
 export interface JobSummary {
   job_id: string;
   page: number;
@@ -475,6 +494,34 @@ function normalizeReviewSpecialists(
     seen.set(folded, name);
     return { name, instructions };
   });
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function validateScoutReferencesSpecialists(
+  scout: string | undefined,
+  specialists: ReviewSpecialistInput[] | undefined
+): void {
+  if (!specialists) {
+    return;
+  }
+  if (!scout) {
+    throw new Error(
+      'When specialists are provided, scout is also required and must reference each specialist by exact name.'
+    );
+  }
+
+  const missing = specialists
+    .map((specialist) => specialist.name)
+    .filter((name) => !new RegExp(`(?<!\\w)${escapeRegExp(name)}(?!\\w)`).test(scout));
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Scout prompt must reference each specialist by exact name. Missing from scout text: ${JSON.stringify(missing)}`
+    );
+  }
 }
 
 function isReviewTerminal(status: string | null | undefined): boolean {
@@ -1459,6 +1506,32 @@ class ReviewInstance {
     return response.issues ?? [];
   }
 
+  async logs(): Promise<ReviewLogsResult> {
+    return this.client.request<ReviewLogsResult>(`/reviews/${this.id}/logs`);
+  }
+
+  async artifact(options: { artifactKey: string; output: string }): Promise<ReviewArtifactResult> {
+    const artifactKey = requireText(options.artifactKey, 'artifactKey');
+    const output = requireText(options.output, 'output');
+    const path = await import('node:path');
+    const fs = await import('node:fs/promises');
+
+    const outputPath = path.resolve(process.cwd(), output);
+    await fs.mkdir(path.dirname(outputPath), { recursive: true });
+
+    const bytesResponse = await this.client.requestBytes(
+      `/reviews/${this.id}/artifacts/${encodeURIComponent(artifactKey)}`
+    );
+    await fs.writeFile(outputPath, Buffer.from(bytesResponse.bytes));
+
+    return {
+      ok: true,
+      output_path: outputPath,
+      bytes_written: bytesResponse.bytes.length,
+      content_type: bytesResponse.contentType ?? 'image/png',
+    };
+  }
+
   async wait(options?: { timeoutMs?: number; pollIntervalMs?: number }): Promise<Review> {
     const timeoutMs = options?.timeoutMs ?? 900_000;
     const pollIntervalMs = options?.pollIntervalMs ?? 5_000;
@@ -1501,6 +1574,7 @@ class Reviews {
     const specialistsCommon = optionalText(options.specialistsCommon);
     const specialists = normalizeReviewSpecialists(options.specialists);
     const customInstructions = optionalText(options.customInstructions);
+    validateScoutReferencesSpecialists(scout, specialists);
 
     if (uploadFile && fileHash) {
       throw new Error('Provide file or fileHash, not both.');

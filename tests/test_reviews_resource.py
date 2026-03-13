@@ -32,12 +32,27 @@ class FakeReviewClient:
         self._status_sequence = status_sequence or ["running", "completed_partial"]
         self._status_calls = 0
 
-    def post(self, path: str, *, files=None, data=None, json=None, cast_to=None):
+    def post(
+        self,
+        path: str,
+        *,
+        files=None,
+        data=None,
+        json=None,
+        cast_to=None,
+        expect_bytes=False,
+    ):
         self.posts.append({"path": path, "files": files, "data": data, "json": json})
         payload = _create_payload()
         return cast_to.model_validate(payload) if cast_to else payload
 
-    def get(self, path: str, params: Optional[dict[str, Any]] = None, cast_to=None):
+    def get(
+        self,
+        path: str,
+        params: Optional[dict[str, Any]] = None,
+        cast_to=None,
+        expect_bytes: bool = False,
+    ):
         self.gets.append({"path": path, "params": params})
 
         if path == "/reviews":
@@ -136,18 +151,58 @@ class FakeReviewClient:
                     }
                 ],
             }
+        elif path == "/reviews/rev_1/logs":
+            payload = {
+                "review_id": "rev_1",
+                "files": [
+                    {
+                        "name": "summary.jsonl",
+                        "size_bytes": 1234,
+                        "line_count": 1,
+                        "entries": [
+                            {"event": "finish", "instructions": "..."},
+                        ],
+                    }
+                ],
+            }
+        elif path == "/reviews/rev_1/artifacts/art_1":
+            payload = b"PNGDATA"
         else:
             raise AssertionError(f"unexpected GET {path}")
 
+        if expect_bytes:
+            return payload
         return cast_to.model_validate(payload) if cast_to else payload
 
 
 class FakeAsyncReviewClient(FakeReviewClient):
-    async def post(self, path: str, *, files=None, data=None, json=None, cast_to=None):
-        return super().post(path, files=files, data=data, json=json, cast_to=cast_to)
+    async def post(
+        self,
+        path: str,
+        *,
+        files=None,
+        data=None,
+        json=None,
+        cast_to=None,
+        expect_bytes=False,
+    ):
+        return super().post(
+            path,
+            files=files,
+            data=data,
+            json=json,
+            cast_to=cast_to,
+            expect_bytes=expect_bytes,
+        )
 
-    async def get(self, path: str, params: Optional[dict[str, Any]] = None, cast_to=None):
-        return super().get(path, params=params, cast_to=cast_to)
+    async def get(
+        self,
+        path: str,
+        params: Optional[dict[str, Any]] = None,
+        cast_to=None,
+        expect_bytes: bool = False,
+    ):
+        return super().get(path, params=params, cast_to=cast_to, expect_bytes=expect_bytes)
 
 
 def test_reviews_create_with_file_hash_posts_json_and_returns_handle() -> None:
@@ -158,7 +213,10 @@ def test_reviews_create_with_file_hash_posts_json_and_returns_handle() -> None:
         pages="12,13",
         file_hash="abc123",
         project_ids=["proj_1"],
-        scout="Scout custom block",
+        scout=(
+            "Route broken references to Cross Reference Checker and "
+            "buildability gaps to Constructability Reviewer."
+        ),
         specialists_common="Shared specialist block",
         specialists=[
             {"name": "Cross Reference Checker", "instructions": "Trace all references."},
@@ -179,7 +237,10 @@ def test_reviews_create_with_file_hash_posts_json_and_returns_handle() -> None:
         "file_hash": "abc123",
         "pages": "12,13",
         "project_ids": ["proj_1"],
-        "scout": "Scout custom block",
+        "scout": (
+            "Route broken references to Cross Reference Checker and "
+            "buildability gaps to Constructability Reviewer."
+        ),
         "specialists_common": "Shared specialist block",
         "specialists": [
             {"name": "Cross Reference Checker", "instructions": "Trace all references."},
@@ -201,7 +262,7 @@ def test_reviews_create_with_file_upload_posts_multipart_fields(tmp_path: Path) 
         pages=13,
         file=pdf_path,
         project_ids=["proj_a", "proj_b"],
-        scout="Scout multipart block",
+        scout="Route all review questions to Cross Reference Checker.",
         specialists_common="Shared multipart specialist block",
         specialists=[
             {"name": "Cross Reference Checker", "instructions": "Trace all references."},
@@ -217,7 +278,7 @@ def test_reviews_create_with_file_upload_posts_multipart_fields(tmp_path: Path) 
         ("pages", "13"),
         ("project_ids", "proj_a"),
         ("project_ids", "proj_b"),
-        ("scout", "Scout multipart block"),
+        ("scout", "Route all review questions to Cross Reference Checker."),
         ("specialists_common", "Shared multipart specialist block"),
         (
             "specialists",
@@ -246,6 +307,7 @@ def test_review_wait_questions_and_issues_use_expected_endpoints() -> None:
 
     questions = review.questions()
     issues = review.issues()
+    logs = review.logs()
 
     assert len(questions) == 1
     assert questions[0].assigned_agents == ["cross_reference"]
@@ -253,6 +315,7 @@ def test_review_wait_questions_and_issues_use_expected_endpoints() -> None:
     assert questions[0].raw_model_output["issues"] == []
     assert len(issues) == 1
     assert issues[0].priority == "P1"
+    assert logs.files[0].name == "summary.jsonl"
 
     paths = [call["path"] for call in client.gets]
     assert paths == [
@@ -260,6 +323,7 @@ def test_review_wait_questions_and_issues_use_expected_endpoints() -> None:
         "/reviews/rev_1",
         "/reviews/rev_1/questions",
         "/reviews/rev_1/issues",
+        "/reviews/rev_1/logs",
     ]
 
 
@@ -290,6 +354,46 @@ def test_reviews_create_rejects_duplicate_specialist_names_case_insensitive() ->
                 {"name": "cross reference checker", "instructions": "Duplicate name."},
             ],
         )
+
+
+def test_reviews_create_requires_scout_when_specialists_are_provided() -> None:
+    client = FakeReviewClient()
+    reviews = Reviews(client)
+
+    with pytest.raises(ValueError, match="scout is also required"):
+        reviews.create(
+            pages="13",
+            file_hash="abc123",
+            specialists=[
+                {"name": "Cross Reference Checker", "instructions": "Trace all references."}
+            ],
+        )
+
+
+def test_reviews_create_requires_exact_specialist_names_in_scout() -> None:
+    client = FakeReviewClient()
+    reviews = Reviews(client)
+
+    with pytest.raises(ValueError, match="Missing from scout text"):
+        reviews.create(
+            pages="13",
+            file_hash="abc123",
+            scout="Route broken references to cross reference review.",
+            specialists=[
+                {"name": "Cross Reference Checker", "instructions": "Trace all references."}
+            ],
+        )
+
+
+def test_review_artifact_download_writes_png(tmp_path: Path) -> None:
+    client = FakeReviewClient()
+    review = Reviews(client).open("rev_1")
+
+    result = review.artifact("art_1", output=tmp_path / "artifact.png")
+
+    assert result.ok is True
+    assert result.bytes_written == 7
+    assert (tmp_path / "artifact.png").read_bytes() == b"PNGDATA"
 
 
 def test_review_wait_raises_on_failed_status() -> None:

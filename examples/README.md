@@ -7,6 +7,7 @@ Page-12 full command cookbook:
 - `PAGE12_COOKBOOK.md`
 - `page13cookbook.md`
 - `REVIEWS_QUICKSTART.md`
+- `prompts/page13_review/README.md`
 
 ## Prerequisites
 
@@ -45,6 +46,12 @@ python3 review_workflow.py --file-hash your_file_hash --pages 13
 # Review workflow (wait for terminal status)
 python3 review_workflow.py --file-hash your_file_hash --pages 13 --wait
 
-# Page-13 review cookbook (create/status/questions/issues/stats/historical fetch)
+# Page-13 review cookbook (default review team)
+python3 page13_review_cookbook.py
+
+# Page-13 review cookbook (custom scout + custom specialist team)
+STRUAI_REVIEW_SCOUT_FILE=/absolute/path/to/examples/prompts/page13_review/scout.md \
+STRUAI_REVIEW_SPECIALISTS_COMMON_FILE=/absolute/path/to/examples/prompts/page13_review/specialists_common.md \
+STRUAI_REVIEW_SPECIALISTS_FILE=/absolute/path/to/examples/prompts/page13_review/specialists.json \
 python3 page13_review_cookbook.py
 ```

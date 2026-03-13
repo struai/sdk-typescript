@@ -2,6 +2,8 @@
 
 Official JavaScript/TypeScript SDK for the StruAI Drawing Analysis API.
 
+- Endpoint + response-shape reference: `../docs/HTTP_ENDPOINTS.md`
+
 ## Installation
 
 ```bash
@@ -46,6 +48,19 @@ const review = await client.reviews.create({
 const finalReview = await review.wait({ timeoutMs: 900_000, pollIntervalMs: 5_000 });
 console.log(finalReview.status, (await review.issues()).length);
 
+const customReview = await client.reviews.create({
+  fileHash: await client.drawings.computeFileHash('/absolute/path/to/structural.pdf'),
+  pages: '13',
+  projectIds: [project.id],
+  scout: 'Look broadly for issues worth deeper investigation.',
+  specialistsCommon: 'All specialists should stay grounded in DocQuery/search-docs evidence.',
+  specialists: [
+    { name: 'Cross Reference Checker', instructions: 'Trace all detail, section, and sheet references.' },
+    { name: 'Constructability Reviewer', instructions: 'Focus on missing dimensions and buildability gaps.' },
+  ],
+});
+console.log(customReview.id);
+
 const uploadReview = await client.reviews.create({
   file: '/absolute/path/to/structural.pdf',
   pages: 12,
@@ -81,6 +96,14 @@ node scripts/reviews_workflow.mjs
 STRUAI_API_KEY=... STRUAI_BASE_URL=https://api.stru.ai \
 STRUAI_REVIEW_FILE_HASH=your_file_hash STRUAI_REVIEW_PAGES=13 STRUAI_REVIEW_WAIT=1 \
 node scripts/reviews_workflow.mjs
+
+# Review workflow (custom scout + custom specialist team)
+STRUAI_API_KEY=... STRUAI_BASE_URL=https://api.stru.ai \
+STRUAI_REVIEW_FILE_HASH=your_file_hash STRUAI_REVIEW_PAGES=13 \
+STRUAI_REVIEW_SCOUT_FILE=/absolute/path/to/examples/prompts/page13_review/scout.md \
+STRUAI_REVIEW_SPECIALISTS_COMMON_FILE=/absolute/path/to/examples/prompts/page13_review/specialists_common.md \
+STRUAI_REVIEW_SPECIALISTS_FILE=/absolute/path/to/examples/prompts/page13_review/specialists.json \
+node scripts/reviews_workflow.mjs
 ```
 
 See `scripts/README.md` for quick copy/paste commands.
@@ -111,9 +134,11 @@ See `scripts/README.md` for quick copy/paste commands.
 
 ### Reviews Top-Level (`client.reviews`)
 
-- `create({ file?, pages, fileHash?, projectIds?, customInstructions? }) -> Promise<ReviewInstance>`
+- `create({ file?, pages, fileHash?, projectIds?, scout?, specialistsCommon?, specialists?, customInstructions? }) -> Promise<ReviewInstance>`
   - Pass exactly one of `file` or `fileHash`.
   - Throws if both are missing or both are provided.
+  - `specialists` must be a non-empty array of `{name, instructions}` objects when provided.
+  - Omit `scout`, `specialistsCommon`, and `specialists` to use the default review team.
 - `list({ status? }?) -> Promise<Review[]>`
 - `get(reviewId) -> Promise<ReviewInstance>`
 - `open(reviewId) -> ReviewInstance`
@@ -210,6 +235,8 @@ console.log(cypher.records[0]?.total, crop.output_path, crop.bytes_written);
 
 ## Endpoint Coverage
 
+Full endpoint + response-shape reference: `../docs/HTTP_ENDPOINTS.md`
+
 Tier 1:
 
 - `POST /v1/drawings`
@@ -229,6 +256,9 @@ Tier 2:
 - `GET /v1/projects/{project_id}/neighbors`
 - `POST /v1/projects/{project_id}/cypher`
 - `POST /v1/projects/{project_id}/crop`
+
+Tier 3:
+
 - `POST /v1/reviews`
 - `GET /v1/reviews`
 - `GET /v1/reviews/{review_id}`

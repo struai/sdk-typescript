@@ -23,12 +23,24 @@ export STRUAI_REVIEW_WAIT=1
 python3 examples/review_workflow.py --wait
 ```
 
+Use the default review team by omitting the custom prompt env vars entirely.
+
 Create a review by uploading a PDF instead:
 
 ```bash
 export STRUAI_PDF=/absolute/path/to/structural.pdf
 unset STRUAI_REVIEW_FILE_HASH
 python3 examples/review_workflow.py --pages 13
+```
+
+Create a review with a custom scout and custom specialist team:
+
+```bash
+export STRUAI_REVIEW_SCOUT_FILE=/absolute/path/to/examples/prompts/page13_review/scout.md
+export STRUAI_REVIEW_SPECIALISTS_COMMON_FILE=/absolute/path/to/examples/prompts/page13_review/specialists_common.md
+export STRUAI_REVIEW_SPECIALISTS_FILE=/absolute/path/to/examples/prompts/page13_review/specialists.json
+
+python3 examples/review_workflow.py --file-hash your_file_hash --pages 13
 ```
 
 ## JavaScript
@@ -57,6 +69,16 @@ Wait for terminal status:
 
 ```bash
 export STRUAI_REVIEW_WAIT=1
+node scripts/reviews_workflow.mjs
+```
+
+Run the same workflow with a custom scout and specialist team:
+
+```bash
+export STRUAI_REVIEW_SCOUT_FILE=/absolute/path/to/examples/prompts/page13_review/scout.md
+export STRUAI_REVIEW_SPECIALISTS_COMMON_FILE=/absolute/path/to/examples/prompts/page13_review/specialists_common.md
+export STRUAI_REVIEW_SPECIALISTS_FILE=/absolute/path/to/examples/prompts/page13_review/specialists.json
+
 node scripts/reviews_workflow.mjs
 ```
 

@@ -8,7 +8,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional, TypeVar
+from typing import Any, Callable, Dict, Iterable, List, Optional, TypeVar
 
 from dotenv import load_dotenv
 
@@ -37,6 +37,31 @@ def _env_required(name: str) -> str:
 
 def _parse_project_ids(raw: str) -> List[str]:
     return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def _read_optional_text_file(path_str: str | None, *, label: str) -> Optional[str]:
+    if not path_str:
+        return None
+    path = Path(path_str)
+    if not path.exists():
+        raise SystemExit(f"{label} file not found: {path}")
+    text = path.read_text().strip()
+    return text or None
+
+
+def _read_specialists_file(path_str: str | None) -> Optional[List[Dict[str, Any]]]:
+    if not path_str:
+        return None
+    path = Path(path_str)
+    if not path.exists():
+        raise SystemExit(f"specialists file not found: {path}")
+    try:
+        payload = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"specialists file is not valid JSON: {exc}") from exc
+    if not isinstance(payload, list):
+        raise SystemExit("specialists file must contain a JSON array")
+    return payload
 
 
 def _iso(value) -> Optional[str]:
@@ -142,15 +167,39 @@ def main() -> int:
     project_ids = _parse_project_ids(os.environ.get("STRUAI_REVIEW_PROJECT_IDS", ""))
     timeout_s = float(os.environ.get("STRUAI_REVIEW_TIMEOUT", "2100"))
     poll_interval_s = float(os.environ.get("STRUAI_REVIEW_POLL_INTERVAL", "10"))
+    custom_instructions = os.environ.get("STRUAI_REVIEW_CUSTOM_INSTRUCTIONS", "").strip() or None
+    scout = _read_optional_text_file(
+        os.environ.get("STRUAI_REVIEW_SCOUT_FILE"),
+        label="scout",
+    )
+    specialists_common = _read_optional_text_file(
+        os.environ.get("STRUAI_REVIEW_SPECIALISTS_COMMON_FILE"),
+        label="specialists_common",
+    )
+    specialists = _read_specialists_file(os.environ.get("STRUAI_REVIEW_SPECIALISTS_FILE"))
 
     client = StruAI(api_key=api_key, base_url=base_url)
 
     start_ts = time.time()
+    _print_json(
+        "prompt_config",
+        {
+            "mode": "custom" if any([scout, specialists_common, specialists]) else "default",
+            "scout_file": os.environ.get("STRUAI_REVIEW_SCOUT_FILE"),
+            "specialists_common_file": os.environ.get("STRUAI_REVIEW_SPECIALISTS_COMMON_FILE"),
+            "specialists_file": os.environ.get("STRUAI_REVIEW_SPECIALISTS_FILE"),
+            "specialists_count": len(specialists or []),
+        },
+    )
     review_handle = _call_with_retry(
         lambda: client.reviews.create(
             file_hash=file_hash,
             pages=pages,
             project_ids=project_ids or None,
+            scout=scout,
+            specialists_common=specialists_common,
+            specialists=specialists,
+            custom_instructions=custom_instructions,
         ),
         label="create_review",
     )

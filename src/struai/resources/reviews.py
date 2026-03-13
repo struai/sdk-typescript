@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import time
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from .._exceptions import ReviewFailedError, TimeoutError
 from ..models.reviews import (
@@ -36,10 +37,53 @@ def _normalize_text(value: Any, *, field_name: str) -> str:
     return text
 
 
+def _normalize_optional_text(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _normalize_specialists(
+    specialists: Optional[List[Dict[str, Any]]],
+) -> Optional[List[Dict[str, str]]]:
+    if specialists is None:
+        return None
+    if not specialists:
+        raise ValueError("specialists cannot be empty")
+
+    normalized: List[Dict[str, str]] = []
+    seen: Dict[str, str] = {}
+    for specialist in specialists:
+        if hasattr(specialist, "model_dump"):
+            specialist = specialist.model_dump()
+        if not isinstance(specialist, dict):
+            raise ValueError("specialists must be a list of objects with name and instructions")
+
+        name = _normalize_text(specialist.get("name"), field_name="specialists[].name")
+        instructions = _normalize_text(
+            specialist.get("instructions"),
+            field_name="specialists[].instructions",
+        )
+        folded = name.casefold()
+        prior = seen.get(folded)
+        if prior is not None:
+            raise ValueError(
+                "specialists names must be unique within the request: "
+                f"'{name}' duplicates '{prior}'"
+            )
+        seen[folded] = name
+        normalized.append({"name": name, "instructions": instructions})
+    return normalized
+
+
 def _multipart_form_fields(
     *,
     pages: str,
     project_ids: Optional[List[str]],
+    scout: Optional[str],
+    specialists_common: Optional[str],
+    specialists: Optional[List[Dict[str, str]]],
     custom_instructions: Optional[str],
 ) -> List[Tuple[str, str]]:
     fields: List[Tuple[str, str]] = [("pages", pages)]
@@ -47,6 +91,12 @@ def _multipart_form_fields(
         clean_project_id = str(project_id).strip()
         if clean_project_id:
             fields.append(("project_ids", clean_project_id))
+    if scout is not None:
+        fields.append(("scout", scout))
+    if specialists_common is not None:
+        fields.append(("specialists_common", specialists_common))
+    if specialists is not None:
+        fields.append(("specialists", json.dumps(specialists, ensure_ascii=True)))
     if custom_instructions is not None:
         fields.append(("custom_instructions", custom_instructions))
     return fields
@@ -171,10 +221,17 @@ class Reviews:
         file: Optional[Uploadable] = None,
         file_hash: Optional[str] = None,
         project_ids: Optional[List[str]] = None,
+        scout: Optional[str] = None,
+        specialists_common: Optional[str] = None,
+        specialists: Optional[List[Dict[str, Any]]] = None,
         custom_instructions: Optional[str] = None,
     ) -> ReviewInstance:
         """Create a review via file_hash JSON or multipart PDF upload."""
         page_selector = _normalize_pages(pages)
+        scout = _normalize_optional_text(scout)
+        specialists_common = _normalize_optional_text(specialists_common)
+        specialists = _normalize_specialists(specialists)
+        custom_instructions = _normalize_optional_text(custom_instructions)
         if file is None and not file_hash:
             raise ValueError("Provide file or file_hash")
         if file is not None and file_hash:
@@ -187,6 +244,9 @@ class Reviews:
                     "file_hash": file_hash,
                     "pages": page_selector,
                     "project_ids": project_ids,
+                    "scout": scout,
+                    "specialists_common": specialists_common,
+                    "specialists": specialists,
                     "custom_instructions": custom_instructions,
                 },
                 cast_to=Review,
@@ -203,6 +263,9 @@ class Reviews:
                 data=_multipart_form_fields(
                     pages=page_selector,
                     project_ids=project_ids,
+                    scout=scout,
+                    specialists_common=specialists_common,
+                    specialists=specialists,
                     custom_instructions=custom_instructions,
                 ),
                 cast_to=Review,
@@ -247,10 +310,17 @@ class AsyncReviews:
         file: Optional[Uploadable] = None,
         file_hash: Optional[str] = None,
         project_ids: Optional[List[str]] = None,
+        scout: Optional[str] = None,
+        specialists_common: Optional[str] = None,
+        specialists: Optional[List[Dict[str, Any]]] = None,
         custom_instructions: Optional[str] = None,
     ) -> AsyncReviewInstance:
         """Create a review via file_hash JSON or multipart PDF upload."""
         page_selector = _normalize_pages(pages)
+        scout = _normalize_optional_text(scout)
+        specialists_common = _normalize_optional_text(specialists_common)
+        specialists = _normalize_specialists(specialists)
+        custom_instructions = _normalize_optional_text(custom_instructions)
         if file is None and not file_hash:
             raise ValueError("Provide file or file_hash")
         if file is not None and file_hash:
@@ -263,6 +333,9 @@ class AsyncReviews:
                     "file_hash": file_hash,
                     "pages": page_selector,
                     "project_ids": project_ids,
+                    "scout": scout,
+                    "specialists_common": specialists_common,
+                    "specialists": specialists,
                     "custom_instructions": custom_instructions,
                 },
                 cast_to=Review,
@@ -279,6 +352,9 @@ class AsyncReviews:
                 data=_multipart_form_fields(
                     pages=page_selector,
                     project_ids=project_ids,
+                    scout=scout,
+                    specialists_common=specialists_common,
+                    specialists=specialists,
                     custom_instructions=custom_instructions,
                 ),
                 cast_to=Review,

@@ -4,6 +4,7 @@ Official SDKs for the StruAI Drawing Analysis API.
 
 - Python package: `struai` (PyPI)
 - JavaScript package: `struai` (npm, source in `js/`)
+- Endpoint + response-shape reference: `docs/HTTP_ENDPOINTS.md`
 
 ## Install
 
@@ -40,7 +41,7 @@ sheet = job.wait(timeout=180)
 hits = project.docquery.search("beam connection", limit=5)
 print(len(hits.hits))
 
-# Tier 3: reviews
+# Tier 3: reviews (default review team)
 review = client.reviews.create(
     file_hash=client.drawings.compute_file_hash("structural.pdf"),
     pages="12,13",
@@ -49,6 +50,20 @@ review = client.reviews.create(
 )
 final_review = review.wait(timeout=900, poll_interval=5)
 print(final_review.status, len(review.issues()))
+
+# Tier 3: reviews (custom scout + custom specialist team)
+custom_review = client.reviews.create(
+    file_hash=client.drawings.compute_file_hash("structural.pdf"),
+    pages="13",
+    project_ids=[project.id],
+    scout="Look broadly for issues worth deeper investigation.",
+    specialists_common="All specialists should stay grounded in DocQuery/search-docs evidence.",
+    specialists=[
+        {"name": "Cross Reference Checker", "instructions": "Trace all detail, section, and sheet references."},
+        {"name": "Constructability Reviewer", "instructions": "Focus on missing dimensions and buildability gaps."},
+    ],
+)
+print(custom_review.id)
 
 # Direct upload path also works
 upload_review = client.reviews.create(
@@ -85,10 +100,20 @@ python3 examples/review_workflow.py --file-hash your_file_hash --pages 13
 
 # Review workflow (wait for terminal status)
 python3 examples/review_workflow.py --file-hash your_file_hash --pages 13 --wait
+
+# Page-13 review cookbook (default review team)
+python3 examples/page13_review_cookbook.py
+
+# Page-13 review cookbook (custom scout + custom specialist team)
+STRUAI_REVIEW_SCOUT_FILE=/absolute/path/to/examples/prompts/page13_review/scout.md \
+STRUAI_REVIEW_SPECIALISTS_COMMON_FILE=/absolute/path/to/examples/prompts/page13_review/specialists_common.md \
+STRUAI_REVIEW_SPECIALISTS_FILE=/absolute/path/to/examples/prompts/page13_review/specialists.json \
+python3 examples/page13_review_cookbook.py
 ```
 
 Page-12 cookbook with all 10 operations (including `cypher` and `crop`):
 - `examples/PAGE12_COOKBOOK.md`
+- `examples/prompts/page13_review/README.md`
 - `examples/REVIEWS_QUICKSTART.md`
 
 JavaScript examples (`/js/scripts`):
@@ -113,6 +138,19 @@ STRUAI_API_KEY=... STRUAI_BASE_URL=https://api.stru.ai \
 STRUAI_PDF=/absolute/path/to/structural.pdf STRUAI_PAGE=12 \
 STRUAI_CROP_OUTPUT=/absolute/path/to/crop.png \
 node scripts/projects_workflow.mjs
+
+# Review workflow (default review team)
+STRUAI_API_KEY=... STRUAI_BASE_URL=https://api.stru.ai \
+STRUAI_REVIEW_FILE_HASH=your_file_hash STRUAI_REVIEW_PAGES=13 \
+node scripts/reviews_workflow.mjs
+
+# Review workflow (custom scout + custom specialist team)
+STRUAI_API_KEY=... STRUAI_BASE_URL=https://api.stru.ai \
+STRUAI_REVIEW_FILE_HASH=your_file_hash STRUAI_REVIEW_PAGES=13 \
+STRUAI_REVIEW_SCOUT_FILE=/absolute/path/to/examples/prompts/page13_review/scout.md \
+STRUAI_REVIEW_SPECIALISTS_COMMON_FILE=/absolute/path/to/examples/prompts/page13_review/specialists_common.md \
+STRUAI_REVIEW_SPECIALISTS_FILE=/absolute/path/to/examples/prompts/page13_review/specialists.json \
+node scripts/reviews_workflow.mjs
 ```
 
 ## Python API Reference
@@ -142,9 +180,11 @@ Async API (`AsyncStruAI`) mirrors the same resource shape and method names; use 
 
 ### Reviews Top-Level (`client.reviews`)
 
-- `create(file=None, pages=1|"1,3,5-7"|"all", file_hash=None, project_ids=None, custom_instructions=None) -> ReviewInstance`
+- `create(file=None, pages=1|"1,3,5-7"|"all", file_hash=None, project_ids=None, scout=None, specialists_common=None, specialists=None, custom_instructions=None) -> ReviewInstance`
   - Pass exactly one of `file` or `file_hash`.
   - Raises `ValueError` if both are missing or both are provided.
+  - `specialists` must be a non-empty list of `{name, instructions}` objects when provided.
+  - Omit `scout`, `specialists_common`, and `specialists` to use the default review team.
 - `list(status=None) -> list[Review]`
 - `get(review_id) -> ReviewInstance`
 - `open(review_id) -> ReviewInstance`
@@ -243,6 +283,8 @@ print(rows.records[0]["total"], crop.output_path, crop.bytes_written)
 
 ## HTTP Endpoints Covered
 
+Full endpoint + response-shape reference: `docs/HTTP_ENDPOINTS.md`
+
 Tier 1:
 
 - `POST /v1/drawings`
@@ -262,6 +304,9 @@ Tier 2:
 - `GET /v1/projects/{project_id}/neighbors`
 - `POST /v1/projects/{project_id}/cypher`
 - `POST /v1/projects/{project_id}/crop`
+
+Tier 3:
+
 - `POST /v1/reviews`
 - `GET /v1/reviews`
 - `GET /v1/reviews/{review_id}`

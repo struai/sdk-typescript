@@ -248,6 +248,12 @@ describe('StruAI JS SDK', () => {
       fileHash: 'abc123def4567890',
       pages: '13',
       projectIds: ['proj_1'],
+      scout: 'Scout custom block',
+      specialistsCommon: 'Shared specialist block',
+      specialists: [
+        { name: 'Cross Reference Checker', instructions: 'Trace all references.' },
+        { name: 'Constructability Reviewer', instructions: 'Review constructability.' },
+      ],
       customInstructions: 'Focus on cross-sheet coordination.',
     });
 
@@ -273,6 +279,12 @@ describe('StruAI JS SDK', () => {
         file_hash: 'abc123def4567890',
         pages: '13',
         project_ids: ['proj_1'],
+        scout: 'Scout custom block',
+        specialists_common: 'Shared specialist block',
+        specialists: [
+          { name: 'Cross Reference Checker', instructions: 'Trace all references.' },
+          { name: 'Constructability Reviewer', instructions: 'Review constructability.' },
+        ],
         custom_instructions: 'Focus on cross-sheet coordination.',
       })
     );
@@ -308,6 +320,9 @@ describe('StruAI JS SDK', () => {
       file: pdfPath,
       pages: 13,
       projectIds: ['proj_a', 'proj_b'],
+      scout: 'Scout multipart block',
+      specialistsCommon: 'Shared multipart specialist block',
+      specialists: [{ name: 'Cross Reference Checker', instructions: 'Trace all references.' }],
       customInstructions: 'Focus on seismic detailing.',
     });
 
@@ -319,10 +334,30 @@ describe('StruAI JS SDK', () => {
     const formData = (init as RequestInit).body as FormData;
     expect(formData.get('pages')).toBe('13');
     expect(formData.getAll('project_ids')).toEqual(['proj_a', 'proj_b']);
+    expect(formData.get('scout')).toBe('Scout multipart block');
+    expect(formData.get('specialists_common')).toBe('Shared multipart specialist block');
+    expect(formData.get('specialists')).toBe(
+      JSON.stringify([{ name: 'Cross Reference Checker', instructions: 'Trace all references.' }])
+    );
     expect(formData.get('custom_instructions')).toBe('Focus on seismic detailing.');
     const file = formData.get('file') as File;
     expect(file.name).toBe('sample.pdf');
     expect(file.type).toBe('application/pdf');
+  });
+
+  it('rejects duplicate specialist names case-insensitively', async () => {
+    const client = new StruAI({ apiKey: 'k', baseUrl: 'http://localhost:8000' });
+
+    await expect(
+      client.reviews.create({
+        fileHash: 'abc123def4567890',
+        pages: '13',
+        specialists: [
+          { name: 'Cross Reference Checker', instructions: 'Trace all references.' },
+          { name: 'cross reference checker', instructions: 'Duplicate name.' },
+        ],
+      })
+    ).rejects.toThrow('specialists names must be unique');
   });
 
   it('lists, gets, opens, and fails review wait correctly', async () => {

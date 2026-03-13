@@ -7,7 +7,7 @@ import argparse
 import json
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from struai import ReviewFailedError, StruAI, TimeoutError
 
@@ -38,6 +38,21 @@ def _parse_args() -> argparse.Namespace:
         "--custom-instructions",
         default=os.environ.get("STRUAI_REVIEW_CUSTOM_INSTRUCTIONS"),
         help="Optional extra review instructions",
+    )
+    parser.add_argument(
+        "--scout-file",
+        default=os.environ.get("STRUAI_REVIEW_SCOUT_FILE"),
+        help="Optional path to a scout prompt text file",
+    )
+    parser.add_argument(
+        "--specialists-common-file",
+        default=os.environ.get("STRUAI_REVIEW_SPECIALISTS_COMMON_FILE"),
+        help="Optional path to a specialists_common prompt text file",
+    )
+    parser.add_argument(
+        "--specialists-file",
+        default=os.environ.get("STRUAI_REVIEW_SPECIALISTS_FILE"),
+        help="Optional path to a JSON file containing the specialists array",
     )
     parser.add_argument(
         "--api-key",
@@ -74,6 +89,31 @@ def _parse_project_ids(raw: str) -> Optional[List[str]]:
     return values or None
 
 
+def _read_optional_text_file(path_str: Optional[str], *, label: str) -> Optional[str]:
+    if not path_str:
+        return None
+    path = Path(path_str)
+    if not path.exists():
+        raise SystemExit(f"{label} file not found: {path}")
+    text = path.read_text().strip()
+    return text or None
+
+
+def _read_specialists_file(path_str: Optional[str]) -> Optional[List[dict[str, Any]]]:
+    if not path_str:
+        return None
+    path = Path(path_str)
+    if not path.exists():
+        raise SystemExit(f"specialists file not found: {path}")
+    try:
+        payload = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"specialists file is not valid JSON: {exc}") from exc
+    if not isinstance(payload, list):
+        raise SystemExit("specialists file must contain a JSON array")
+    return payload
+
+
 def _print_review(label: str, review) -> None:
     payload = {
         "review_id": review.review_id,
@@ -105,12 +145,21 @@ def main() -> int:
 
     client = StruAI(api_key=args.api_key, base_url=args.base_url)
     project_ids = _parse_project_ids(args.project_ids)
+    scout = _read_optional_text_file(args.scout_file, label="scout")
+    specialists_common = _read_optional_text_file(
+        args.specialists_common_file,
+        label="specialists_common",
+    )
+    specialists = _read_specialists_file(args.specialists_file)
 
     if args.file_hash:
         review = client.reviews.create(
             file_hash=args.file_hash,
             pages=args.pages,
             project_ids=project_ids,
+            scout=scout,
+            specialists_common=specialists_common,
+            specialists=specialists,
             custom_instructions=args.custom_instructions,
         )
     else:
@@ -118,6 +167,9 @@ def main() -> int:
             file=str(pdf_path),
             pages=args.pages,
             project_ids=project_ids,
+            scout=scout,
+            specialists_common=specialists_common,
+            specialists=specialists,
             custom_instructions=args.custom_instructions,
         )
 

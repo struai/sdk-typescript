@@ -40,4 +40,11 @@ node scripts/reviews_workflow.mjs
 # Review workflow (wait for terminal status)
 STRUAI_REVIEW_FILE_HASH=your_file_hash STRUAI_REVIEW_PAGES=13 \
 STRUAI_REVIEW_WAIT=1 node scripts/reviews_workflow.mjs
+
+# Review workflow (custom scout + custom specialist team)
+STRUAI_REVIEW_FILE_HASH=your_file_hash STRUAI_REVIEW_PAGES=13 \
+STRUAI_REVIEW_SCOUT_FILE=/absolute/path/to/examples/prompts/page13_review/scout.md \
+STRUAI_REVIEW_SPECIALISTS_COMMON_FILE=/absolute/path/to/examples/prompts/page13_review/specialists_common.md \
+STRUAI_REVIEW_SPECIALISTS_FILE=/absolute/path/to/examples/prompts/page13_review/specialists.json \
+node scripts/reviews_workflow.mjs
 ```

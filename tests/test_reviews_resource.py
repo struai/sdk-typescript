@@ -158,6 +158,12 @@ def test_reviews_create_with_file_hash_posts_json_and_returns_handle() -> None:
         pages="12,13",
         file_hash="abc123",
         project_ids=["proj_1"],
+        scout="Scout custom block",
+        specialists_common="Shared specialist block",
+        specialists=[
+            {"name": "Cross Reference Checker", "instructions": "Trace all references."},
+            {"name": "Constructability Reviewer", "instructions": "Review constructability."},
+        ],
         custom_instructions="Focus on lateral coordination",
     )
 
@@ -173,6 +179,12 @@ def test_reviews_create_with_file_hash_posts_json_and_returns_handle() -> None:
         "file_hash": "abc123",
         "pages": "12,13",
         "project_ids": ["proj_1"],
+        "scout": "Scout custom block",
+        "specialists_common": "Shared specialist block",
+        "specialists": [
+            {"name": "Cross Reference Checker", "instructions": "Trace all references."},
+            {"name": "Constructability Reviewer", "instructions": "Review constructability."},
+        ],
         "custom_instructions": "Focus on lateral coordination",
     }
     assert request["files"] is None
@@ -189,6 +201,11 @@ def test_reviews_create_with_file_upload_posts_multipart_fields(tmp_path: Path) 
         pages=13,
         file=pdf_path,
         project_ids=["proj_a", "proj_b"],
+        scout="Scout multipart block",
+        specialists_common="Shared multipart specialist block",
+        specialists=[
+            {"name": "Cross Reference Checker", "instructions": "Trace all references."},
+        ],
         custom_instructions="Focus on seismic detailing",
     )
 
@@ -200,6 +217,12 @@ def test_reviews_create_with_file_upload_posts_multipart_fields(tmp_path: Path) 
         ("pages", "13"),
         ("project_ids", "proj_a"),
         ("project_ids", "proj_b"),
+        ("scout", "Scout multipart block"),
+        ("specialists_common", "Shared multipart specialist block"),
+        (
+            "specialists",
+            '[{"name": "Cross Reference Checker", "instructions": "Trace all references."}]',
+        ),
         ("custom_instructions", "Focus on seismic detailing"),
     ]
     assert request["files"]["file"][0] == "sample.pdf"
@@ -252,6 +275,21 @@ def test_reviews_list_and_get_return_review_models() -> None:
     assert listed[0].is_complete
     assert fetched.id == "rev_1"
     assert client.gets[0] == {"path": "/reviews", "params": {"status": "completed"}}
+
+
+def test_reviews_create_rejects_duplicate_specialist_names_case_insensitive() -> None:
+    client = FakeReviewClient()
+    reviews = Reviews(client)
+
+    with pytest.raises(ValueError, match="specialists names must be unique"):
+        reviews.create(
+            pages="13",
+            file_hash="abc123",
+            specialists=[
+                {"name": "Cross Reference Checker", "instructions": "Trace all references."},
+                {"name": "cross reference checker", "instructions": "Duplicate name."},
+            ],
+        )
 
 
 def test_review_wait_raises_on_failed_status() -> None:

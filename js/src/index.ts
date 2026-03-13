@@ -218,6 +218,11 @@ export interface ReviewIssuesResult {
   issues: ReviewIssue[];
 }
 
+export interface ReviewSpecialistInput {
+  name: string;
+  instructions: string;
+}
+
 export interface JobSummary {
   job_id: string;
   page: number;
@@ -433,6 +438,43 @@ function requireText(value: string, fieldName: string): string {
     throw new Error(`${fieldName} is required`);
   }
   return text;
+}
+
+function optionalText(value: string | null | undefined): string | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  const text = value.trim();
+  return text || undefined;
+}
+
+function normalizeReviewSpecialists(
+  specialists?: ReviewSpecialistInput[] | null
+): ReviewSpecialistInput[] | undefined {
+  if (specialists === undefined || specialists === null) {
+    return undefined;
+  }
+  if (!Array.isArray(specialists) || specialists.length === 0) {
+    throw new Error('specialists cannot be empty.');
+  }
+
+  const seen = new Map<string, string>();
+  return specialists.map((specialist) => {
+    const name = requireText(String(specialist?.name ?? ''), 'specialists[].name');
+    const instructions = requireText(
+      String(specialist?.instructions ?? ''),
+      'specialists[].instructions'
+    );
+    const folded = name.toLocaleLowerCase();
+    const prior = seen.get(folded);
+    if (prior) {
+      throw new Error(
+        `specialists names must be unique within the request: '${name}' duplicates '${prior}'.`
+      );
+    }
+    seen.set(folded, name);
+    return { name, instructions };
+  });
 }
 
 function isReviewTerminal(status: string | null | undefined): boolean {
@@ -1447,11 +1489,18 @@ class Reviews {
     pages: number | string;
     fileHash?: string;
     projectIds?: string[];
+    scout?: string | null;
+    specialistsCommon?: string | null;
+    specialists?: ReviewSpecialistInput[] | null;
     customInstructions?: string | null;
   }): Promise<ReviewInstance> {
     const uploadFile = options.file;
     const fileHash = options.fileHash;
     const pages = parsePageSelector(options.pages);
+    const scout = optionalText(options.scout);
+    const specialistsCommon = optionalText(options.specialistsCommon);
+    const specialists = normalizeReviewSpecialists(options.specialists);
+    const customInstructions = optionalText(options.customInstructions);
 
     if (uploadFile && fileHash) {
       throw new Error('Provide file or fileHash, not both.');
@@ -1468,7 +1517,10 @@ class Reviews {
           file_hash: fileHash,
           pages,
           project_ids: options.projectIds,
-          custom_instructions: options.customInstructions ?? undefined,
+          scout,
+          specialists_common: specialistsCommon,
+          specialists,
+          custom_instructions: customInstructions,
         }),
       });
       return new ReviewInstance(this.client, withReviewFlags(review));
@@ -1486,8 +1538,17 @@ class Reviews {
         formData.append('project_ids', cleanProjectId);
       }
     }
-    if (options.customInstructions !== undefined && options.customInstructions !== null) {
-      formData.append('custom_instructions', options.customInstructions);
+    if (scout !== undefined) {
+      formData.append('scout', scout);
+    }
+    if (specialistsCommon !== undefined) {
+      formData.append('specialists_common', specialistsCommon);
+    }
+    if (specialists !== undefined) {
+      formData.append('specialists', JSON.stringify(specialists));
+    }
+    if (customInstructions !== undefined) {
+      formData.append('custom_instructions', customInstructions);
     }
 
     const part = await uploadableToFormPart(uploadFile);
